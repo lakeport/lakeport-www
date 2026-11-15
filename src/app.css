@@ -4,7 +4,7 @@
  *   - Typography: Geist (display), Schibsted Grotesk (editorial prose/UI),
  *     JetBrains Mono + Lakeport Math (Lean 4 code, theorems, tabular readouts)
  *   - Palette: Mist (#F8F6F3), Abyss (#00181B), Deep (#112424),
- *     Lake (#06736A), Shallows (#54D5CA), Foam (#E1F5F2), Beacon (#F0B054 / #8A5601)
+ *     Lake (#06736A), Shallows (#54D5CA), Foam (#E1F5F2), Amber (#F0B054 / #8A5601)
  *   - Architecture: One full-bleed 1px waterline transition per marketing route
  */
 
@@ -51,11 +51,18 @@
 
 body {
   margin: 0;
-  background: #00181B;
-  color: #E1F5F2;
+  background: #F8F6F3;
+  color: #112424;
   font-family: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #00181B;
+    color: #E1F5F2;
+  }
 }
 
 h1, h2, h3, p { margin: 0; }
@@ -116,14 +123,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --lp-lake-900: #032723;
   --lp-lake-950: #001915;
 
-  --lp-beacon-50: #FEF6E8;
-  --lp-beacon-100: #FFE9CB;
-  --lp-beacon-200: #FED398;
-  --lp-beacon-300: #F0B054;
-  --lp-beacon-400: #D68D07;
-  --lp-beacon-500: #AF7107;
-  --lp-beacon-600: #8A5601;
-  --lp-beacon-900: #311A01;
+  --lp-amber-50: #FEF6E8;
+  --lp-amber-100: #FFE9CB;
+  --lp-amber-200: #FED398;
+  --lp-amber-300: #F0B054;
+  --lp-amber-400: #D68D07;
+  --lp-amber-500: #AF7107;
+  --lp-amber-600: #8A5601;
+  --lp-amber-900: #311A01;
 
   --lp-proved-50: #E4FFEC;
   --lp-proved-300: #77D59A;
@@ -166,7 +173,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --ink: var(--lp-stone-900);
   --ink-body: #20312F;
   --ink-muted: var(--lp-stone-600);
-  --ink-faint: var(--lp-stone-500);
+  --ink-faint: var(--lp-stone-600);
   --border: var(--lp-stone-200);
   --border-strong: var(--lp-stone-300);
 
@@ -174,7 +181,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --brand-hover: var(--lp-lake-700);
   --on-brand: #FFFFFF;
   --brand-soft: var(--lp-lake-50);
-  --accent: var(--lp-beacon-600);
+  --accent: var(--lp-amber-600);
   --focus: var(--lp-lake-500);
   --waterline: var(--lp-lake-600);
 
@@ -196,7 +203,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --mdx-strong: var(--lp-stone-900);
   --mdx-ink: #20312F;
   --mdx-muted: var(--lp-stone-600);
-  --mdx-faint: var(--lp-stone-500);
+  --mdx-faint: var(--lp-stone-600);
   --mdx-rule: var(--lp-stone-200);
   --mdx-rule-strong: var(--lp-stone-400);
   --mdx-accent: var(--lp-lake-600);
@@ -210,7 +217,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --mdx-callout-bg: #F1F7F6;
   --mdx-callout-tip: #EDF9F6;
   --mdx-callout-imp: #F3F5FB;
-  --mdx-callout-warn: var(--lp-beacon-50);
+  --mdx-callout-warn: var(--lp-amber-50);
   --mdx-table-head: var(--lp-stone-100);
 
   min-height: 100vh;
@@ -241,7 +248,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     --brand-hover: var(--lp-lake-200);
     --on-brand: var(--lp-abyss);
     --brand-soft: var(--lp-lake-900);
-    --accent: var(--lp-beacon-300);
+    --accent: var(--lp-amber-300);
     --focus: var(--lp-lake-300);
     --waterline: rgba(84, 213, 202, 0.52);
 
@@ -298,7 +305,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --brand-hover: var(--lp-lake-200);
   --on-brand: var(--lp-abyss);
   --brand-soft: var(--lp-lake-900);
-  --accent: var(--lp-beacon-300);
+  --accent: var(--lp-amber-300);
   --focus: var(--lp-lake-300);
   --waterline: rgba(84, 213, 202, 0.52);
 
@@ -348,6 +355,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   position: absolute;
   inset: 0;
   z-index: 2;
+  overflow: hidden;
   opacity: 0;
 }
 
@@ -400,7 +408,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -409,7 +417,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   padding: 2px 7px;
   border-radius: 4px;
   font-family: var(--lp-font-mono);
@@ -488,7 +496,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 26px;
+  gap: 24px;
 }
 
 .nav-item {
@@ -524,7 +532,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -637,7 +645,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-faint);
 }
 
@@ -648,8 +655,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 22px;
-  padding-top: 6px;
+  gap: 20px;
+  padding-top: 4px;
 }
 
 .inline-links-row {
@@ -657,7 +664,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
   padding-top: 4px;
 }
 
@@ -676,19 +683,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   background: var(--brand-hover);
 }
 
-.btn-beacon {
+.btn-amber {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 11px 18px;
   border-radius: 6px;
-  background: var(--lp-beacon-300);
+  background: var(--lp-amber-300);
   color: var(--lp-stone-900);
 }
 
-.btn-beacon:hover {
-  background: var(--lp-beacon-200);
+.btn-amber:hover {
+  background: var(--lp-amber-200);
 }
 
 .btn-ghost {
@@ -761,7 +768,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   max-width: 700px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
 }
 
 .hero-home .hero-copy-col {
@@ -862,13 +869,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   border-bottom: 1px solid var(--lp-stone-800);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .theorem-strip-code {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .theorem-pre {
@@ -901,7 +908,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   max-width: 680px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .water-lead {
@@ -959,7 +966,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .wb-tab {
@@ -1018,7 +1025,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: baseline;
-  gap: 14px;
+  gap: 12px;
   font-family: var(--lp-font-mono);
   font-size: 12.5px;
   line-height: 1.58;
@@ -1046,7 +1053,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .wb-ln {
   width: 20px;
   flex-shrink: 0;
-  color: var(--lp-stone-500);
+  color: var(--lp-stone-400);
   font-size: 11px;
   user-select: none;
 }
@@ -1062,7 +1069,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 22px 20px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .wb-total-row {
@@ -1120,7 +1127,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--lp-stone-800);
 }
 
@@ -1134,7 +1141,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 12px;
   color: var(--lp-stone-300);
 }
@@ -1160,7 +1167,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .wb-secondary-btn {
@@ -1183,7 +1190,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .wb-step-label {
@@ -1267,7 +1274,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   min-width: 280px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .wb-drawer-title {
@@ -1275,7 +1282,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--lp-stone-400);
 }
 
@@ -1295,7 +1301,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .wire-log {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .wire-row {
@@ -1342,6 +1348,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 /* ------------------------------------------------------------------ Editorial Splits & Ruled Sections */
 
 .editorial-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
   padding: 88px 0;
   background: var(--air);
 }
@@ -1386,7 +1394,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   border: 1px solid var(--lp-stone-800);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .compile-specimen .mono-kicker {
@@ -1414,7 +1422,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .rollout-stops {
@@ -1432,7 +1440,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   border-bottom: 2px solid rgba(0, 0, 0, 0);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .rollout-stop-num {
@@ -1503,7 +1511,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .seg-btn {
@@ -1643,6 +1651,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 .water-specimen-code {
   flex: 7;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -1727,10 +1737,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
-.beacon-live-tag {
+.amber-live-tag {
   font-family: var(--lp-font-mono);
   font-size: 11.5px;
   font-weight: 600;
@@ -1740,7 +1750,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .sandbox-textarea {
   width: 100%;
   min-height: 220px;
-  padding: 18px;
+  padding: 16px;
   font-family: var(--lp-font-mono);
   font-size: 13px;
   line-height: 1.62;
@@ -1772,6 +1782,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 .mdx-water-surface {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
   padding: 28px 32px;
   border-radius: 10px;
   border: 1px solid var(--lp-stone-800);
@@ -1882,7 +1894,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 56px 0 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .water-spec-rows {
@@ -1936,7 +1948,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--brand);
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-strong);
@@ -1966,7 +1977,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   pointer-events: none;
 }
 
@@ -2058,14 +2069,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .side-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .side-group-title {
   font-family: var(--lp-font-mono);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--ink-faint);
   padding: 0 10px 4px;
@@ -2101,6 +2111,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 .docs-main {
   flex: 1;
+  width: 100%;
   min-width: 0;
   max-width: 780px;
   padding: 36px 44px 72px;
@@ -2113,7 +2124,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-family: var(--lp-font-mono);
   font-size: 12px;
   color: var(--brand);
@@ -2150,7 +2161,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .pager-dir {
   font-family: var(--lp-font-mono);
   font-size: 11px;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-faint);
   pointer-events: none;
@@ -2172,14 +2182,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 36px 24px 36px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .toc-heading {
   font-family: var(--lp-font-mono);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--ink-faint);
 }
@@ -2221,7 +2230,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
 }
 
 .footer-logo-wrap {
@@ -2240,7 +2249,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
 }
 
 .footer-link {
@@ -2259,12 +2268,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 .footer-colophon {
-  padding-top: 18px;
+  padding-top: 16px;
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
   font-family: var(--lp-font-mono);
   font-size: 11.5px;
   color: var(--ink-faint);
@@ -2289,6 +2299,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .split-8-4,
   .split-4-8 {
     flex-direction: column;
+    align-items: stretch;
     gap: 36px;
   }
   .pull-aside {
@@ -2305,6 +2316,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 @media (max-width: 860px) {
+  .topbar-inner { padding: 0 16px; gap: 12px; }
+  .topbar-right { gap: 12px; }
   .nav-links { display: none; }
   .mobile-menu-btn { display: flex; }
 
@@ -2341,7 +2354,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .case-row,
   .docs-index-row {
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .numbered-head,
   .case-meta-col,
@@ -2356,15 +2369,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     min-width: 140px;
   }
 
-  .spec-row {
+  .spec-row,
+  .water-spec-row {
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
-  .spec-key {
+  .spec-key,
+  .water-spec-key {
     width: auto;
   }
 
-  .docs-layout { flex-direction: column; }
+  .docs-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .docs-sidebar {
     position: static;
     width: 100%;
@@ -2374,6 +2392,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     padding: 16px 20px;
   }
   .docs-main {
+    width: 100%;
+    max-width: 100%;
     padding: 24px 20px 56px;
   }
 }
@@ -2396,4 +2416,241 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 .wb-code-src {
   flex: 1;
+}
+
+/* ------------------------------------------------------------------ 3-Step Adoption Workflow & Redesigned Checkout Simulator */
+
+.workflow-strip {
+  padding: 40px 256px 36px 0;
+  border-bottom: 1px solid var(--lp-stone-800);
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+}
+
+.workflow-step {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workflow-num {
+  font-family: var(--lp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lp-lake-300);
+}
+
+.workflow-title {
+  font-family: var(--lp-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--lp-foam);
+}
+
+.workflow-desc {
+  font-size: 14.5px;
+  line-height: 1.58;
+  color: #C9DFDC;
+}
+
+.wb-pane-title {
+  font-family: var(--lp-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lp-foam);
+}
+
+.wb-pane-bar-mid {
+  border-top: 1px solid var(--lp-stone-800);
+}
+
+.wb-explain {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--lp-stone-800);
+  background: rgba(17, 36, 36, 0.55);
+  font-size: 14.5px;
+  line-height: 1.58;
+  color: #D2E6E3;
+}
+
+.wb-wallet-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.wb-wallet-card {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--lp-stone-800);
+  background: var(--lp-abyss);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-wallet-label {
+  font-family: var(--lp-font-mono);
+  font-size: 12px;
+  color: var(--lp-stone-300);
+}
+
+.wb-wallet-note {
+  font-size: 12.5px;
+  color: var(--lp-stone-400);
+}
+
+.wb-charged-num {
+  font-family: var(--lp-font-display);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--lp-foam);
+}
+
+.wb-charged-num[data-ok="true"] {
+  color: var(--lp-proved-300);
+}
+
+.wb-charged-num[data-violated="true"] {
+  color: var(--lp-failed-300);
+}
+
+.wb-total-num {
+  font-size: 36px;
+}
+
+.wb-secondary-btn[data-active="true"] {
+  border-color: var(--lp-lake-300);
+  background: rgba(84, 213, 202, 0.12);
+}
+
+.wb-reset-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--lp-stone-800);
+  font-family: var(--lp-font-mono);
+  font-size: 12px;
+  color: var(--lp-stone-300);
+}
+
+.wb-reset-btn:hover {
+  border-color: var(--lp-stone-600);
+  color: var(--lp-foam);
+}
+
+.wb-outcome-box {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--lp-stone-800);
+  background: rgba(0, 24, 27, 0.72);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wb-outcome-box[data-state="ok"] {
+  border-color: rgba(119, 213, 154, 0.45);
+  background: rgba(0, 40, 19, 0.45);
+}
+
+.wb-outcome-box[data-state="fault"] {
+  border-color: rgba(255, 160, 152, 0.55);
+  background: rgba(65, 7, 9, 0.55);
+}
+
+.wb-outcome-head {
+  font-family: var(--lp-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--lp-foam);
+}
+
+.wb-outcome-box[data-state="fault"] .wb-outcome-head {
+  color: #FFDAD6;
+}
+
+.wb-outcome-box[data-state="ok"] .wb-outcome-head {
+  color: var(--lp-proved-300);
+}
+
+.wb-outcome-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wb-outcome-step {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #C9DFDC;
+}
+
+.wb-fix-cta {
+  padding-top: 4px;
+}
+
+.wb-fix-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--lp-lake-300);
+  background: rgba(84, 213, 202, 0.14);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--lp-foam);
+}
+
+.wb-fix-btn:hover {
+  background: rgba(84, 213, 202, 0.24);
+}
+
+.wb-rule-quote {
+  font-family: var(--lp-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--lp-foam);
+}
+
+.wb-rule-note {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #C9DFDC;
+}
+
+.compile-label {
+  font-family: var(--lp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lp-stone-300);
+}
+
+.mdx-bar-title {
+  font-family: var(--lp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 860px) {
+  .workflow-strip {
+    padding: 72px 0 28px;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .wb-wallet-grid {
+    flex-direction: column;
+  }
+  .wb-tabs {
+    flex-wrap: wrap;
+  }
 }

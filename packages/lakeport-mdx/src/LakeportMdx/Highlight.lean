@@ -130,15 +130,24 @@ def tokenizeChars (lang : String) : Nat → List Char → List (TokKind × List 
       let (rest, after) := spanChars isDigitChar cs
       (.number, c :: rest) :: tokenizeChars lang fuel after
     else
-      let (ws, after) := spanChars (fun ch => ch == ' ' || ch == '\t') (c :: cs)
-      match ws with
-      | _ :: _ => (.plain, ws) :: tokenizeChars lang fuel after
+      let (plainRun, after) :=
+        spanChars (fun ch => !isIdentInit ch && !isDigitChar ch && ch != '-' && ch != '#' && ch != '"' && ch != '<') (c :: cs)
+      match plainRun with
+      | _ :: _ => (.plain, plainRun) :: tokenizeChars lang fuel after
       | [] => (.plain, [c]) :: tokenizeChars lang fuel cs
+
+/-- Merge consecutive `.plain` segments so adjacent punctuation, spaces, and plain words share one `<span>`. -/
+def coalesceTokens : List (TokKind × List Char) → List (TokKind × List Char)
+  | [] => []
+  | (k, seg) :: rest =>
+    match k, coalesceTokens rest with
+    | .plain, (.plain, seg2) :: tail => (.plain, seg ++ seg2) :: tail
+    | _, tail => (k, seg) :: tail
 
 /-- Highlight a single line into `(TokKind × String)` tokens. -/
 def highlightLine (lang : String) (line : String) : List (TokKind × String) :=
   let cs := line.toList
-  (tokenizeChars lang (cs.length + 1) cs).map (fun (k, seg) => (k, String.ofList seg))
+  (coalesceTokens (tokenizeChars lang (cs.length + 1) cs)).map (fun (k, seg) => (k, String.ofList seg))
 
 /-- Reconstruct raw text from a highlighted line's token list. -/
 def tokensText (toks : List (TokKind × String)) : String :=
