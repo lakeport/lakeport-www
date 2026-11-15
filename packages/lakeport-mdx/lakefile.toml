@@ -1,0 +1,14 @@
+name = "lakeport-mdx"
+version = "0.1.0"
+description = "Pure-Lean MDX frontmatter, AST parser, lossless syntax highlighter, and Lakeport StyledView renderer"
+keywords = ["lakeport", "mdx", "markdown", "docs", "ui"]
+license = "Apache-2.0"
+defaultTargets = ["LakeportMdx"]
+
+[[lean_lib]]
+name = "LakeportMdx"
+srcDir = "src"
+roots = ["LakeportMdx"]
+
+[lakeport]
+kind = "sdk"
