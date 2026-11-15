@@ -9,24 +9,24 @@ import Demo.Workbench
 /-!
 # `Site.State` — Pure Application State, Proved MDX MemoCell & Reducer
 
-Single source of truth for navigation, theme, Homepage Workbench, interactive docs
-widgets, live MDX Sandbox, and cached `MdxDoc` parsing (`MemoCell`).
+Single source of truth for navigation, theme preference, Homepage Workbench,
+interactive docs widgets, live MDX Sandbox, and cached `MdxDoc` parsing (`MemoCell`).
 -/
 namespace Site
 open LakeportRouter LakeportEffects LakeportStyle LakeportMdx Site.Docs Site.Demo
 
 def defaultSandboxMdx : String :=
 "---
-title: \"Edge capability note\"
+title: \"Release notes\"
 section: \"Sandbox\"
 ---
 
-## Live pure-Lean MDX
+## Ship the frontend first
 
-Edit this source to watch **LakeportMdx** re-parse and highlight in `wasm32`:
+Edit this source to watch **LakeportMdx** parse and render on keystroke in `wasm32`:
 
-- Zero JavaScript markdown libraries (`0 B` runtime JS parser)
-- Scoped `import_css` stylesheet with typed `ClassName` exports
+- Older clients continue speaking `lpw1`.
+- Enable `instant_release` once dual-version pods are healthy.
 
 ```lean title=\"CapabilityCheck.lean\"
 theorem gate_closed_by_default (cmd : V2.ClientFrame) :
@@ -34,8 +34,8 @@ theorem gate_closed_by_default (cmd : V2.ClientFrame) :
   rfl
 ```
 
-<Callout kind=\"tip\" title=\"Try editing me\">
-Add a bullet, table, or heading above and watch the AST and right-rail TOC update immediately.
+<Callout kind=\"note\" title=\"Zero JS parser\">
+The AST, heading slugs, and syntax tokens come from compiled Lean WebAssembly.
 </Callout>"
 
 def sandboxPresetContract : String :=
@@ -44,7 +44,7 @@ title: \"Contract union snippet\"
 section: \"Sandbox\"
 ---
 
-## Exhaustive version table
+## Versioned wire table
 
 | Version | Wire tag | Instant release |
 | --- | --- | --- |
@@ -52,17 +52,43 @@ section: \"Sandbox\"
 | `Version.v2` | `lpw2` | Permitted when advertised |
 
 ```lean title=\"shared/SiteContract/Api.lean\"
-def clientHandler : (v : Version) -> Handler v
+def clientHandler : (v : Version) → Handler v
   | .v1 => { encode := Wire.V1.encodeReq, decode := Wire.V1.decodeResp }
   | .v2 => { encode := Wire.V2.encodeReq, decode := Wire.V2.decodeResp }
 ```"
 
+inductive ThemePref where
+  | auto
+  | light
+  | dark
+  deriving DecidableEq, Repr, Inhabited
+
+namespace ThemePref
+
+def attr : ThemePref → String
+  | .auto => "auto"
+  | .light => "light"
+  | .dark => "dark"
+
+def next : ThemePref → ThemePref
+  | .auto => .light
+  | .light => .dark
+  | .dark => .auto
+
+def buttonLabel : ThemePref → String
+  | .auto => "Theme: Auto"
+  | .light => "Theme: Light"
+  | .dark => "Theme: Dark"
+
+end ThemePref
+
 structure AppState where
   router : RouterState SiteRoute := RouterState.ofRoot .home
-  darkTheme : Bool := true
+  theme : ThemePref := .auto
   mobileNavOpen : Bool := false
   docsSearch : String := ""
   copiedKey : String := ""
+  sandboxPreset : String := "notes"
   nextReqId : Nat := 1
   commit : Nat := 0
   workbench : WorkbenchState := {}

@@ -11,7 +11,9 @@ Strictly `theorem`-only module proving:
 4. Productive witness: `reserve25` followed by `settleMilestone` moves `2500` cents from
    `available` to `released`.
 5. Refutation theorem (`buggy_retry_loses_conservation`): `stepBuggyAgentRetry` violates
-   conservation (`7500 ≠ 10000`), backing the interactive Patch B counterexample in the UI.
+   conservation (`7500 ≠ 10000`), backing the interactive counterexample in the UI.
+6. Checked retry witness (`checked_retry_comparison_conserves`): `stepCheckedRetryComparison`
+   locks `cid-1` as `.uncertain`, blocks the duplicate reserve, and preserves `10000` cents.
 -/
 namespace Site.Demo.Laws
 open Site.Contract Site.Demo
@@ -95,6 +97,12 @@ theorem productive_reserve_and_settle :
 theorem buggy_retry_loses_conservation :
     let l0 : Ledger := {}
     (stepBuggyAgentRetry l0).totalCents = 7500 ∧ (stepBuggyAgentRetry l0).totalCents ≠ l0.totalCents := by
+  decide
+
+theorem checked_retry_comparison_conserves :
+    let (l3, _) := stepCheckedRetryComparison .stagedDual
+    l3.available = 7500 ∧ l3.held = 2500 ∧ l3.released = 0 ∧
+    l3.delivery = .uncertain "cid-1" 2500 ∧ l3.totalCents = 10000 := by
   decide
 
 theorem dce_proof_bytes_always_zero (d : DceState) :

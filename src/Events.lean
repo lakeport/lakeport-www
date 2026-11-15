@@ -3,8 +3,8 @@ import State
 /-!
 # `Site.Events` — Typed UI Event Constructors & Reducer Dispatch
 
-Centralizes `(Nat × String)` UI event tags and field edits so `Widgets.lp`,
-`Marketing.lp`, `DocsView.lp`, and `App.lp` share a single verified dispatch table.
+Centralizes `(Nat × String)` UI event tags and field edits so `Brand.lp`,
+`Widgets.lp`, `Marketing.lp`, `DocsView.lp`, and `App.lp` share one verified dispatch table.
 -/
 namespace Site
 open LakeportEffects Site.Demo
@@ -23,6 +23,8 @@ def wbServer (m : ServerMode) : UiEvent := (11, m.slug)
 def wbAction (act : String) : UiEvent := (12, act)
 def wbCounterexample : UiEvent := (13, "")
 def wbProofDrawer : UiEvent := (14, "")
+def wbCompareChecked : UiEvent := (15, "")
+def wbContractExplorer : UiEvent := (16, "")
 
 def simServer (m : ServerMode) : UiEvent := (20, m.slug)
 def simCorrupt : UiEvent := (21, "")
@@ -52,7 +54,7 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
   | (1, url) =>
     some (navigateToUrl s url, [])
   | (2, _) =>
-    some (bump { s with darkTheme := !s.darkTheme }, [])
+    some (bump { s with theme := s.theme.next }, [])
   | (3, _) =>
     some (bump { s with mobileNavOpen := !s.mobileNavOpen }, [])
   | (4, packed) =>
@@ -70,7 +72,7 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
     let adEntry : WireLogEntry := {
       seq := s.workbench.ledger.nextCid
       direction := "CAPS"
-      summary := "Switched backend advertisement -> " ++ srv.label
+      summary := "Switched backend advertisement → " ++ srv.label
       frame := "\t".intercalate (Site.Contract.encodeAdvertisementFields srv.advertisement)
     }
     let wb' := { s.workbench with server := srv, logs := pushLog s.workbench adEntry }
@@ -82,6 +84,11 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
     some (bump { s with workbench := triggerCounterexample s.workbench }, [])
   | (14, _) =>
     let wb' := { s.workbench with proofDrawerOpen := !s.workbench.proofDrawerOpen }
+    some (bump { s with workbench := wb' }, [])
+  | (15, _) =>
+    some (bump { s with workbench := triggerCheckedComparison s.workbench }, [])
+  | (16, _) =>
+    let wb' := { s.workbench with contractExplorerOpen := !s.workbench.contractExplorerOpen }
     some (bump { s with workbench := wb' }, [])
   | (20, srvSlug) =>
     let sim' := { s.contractSim with server := ServerMode.parse srvSlug, corruptAd := false }
@@ -105,7 +112,7 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
     some (bump { s with dce := dce' }, [])
   | (50, preset) =>
     let src := if preset == "contract" then sandboxPresetContract else defaultSandboxMdx
-    some (bump { s with sandboxSource := src }, [])
+    some (bump { s with sandboxPreset := preset, sandboxSource := src }, [])
   | (51, _) =>
     some (bump { s with docsSearch := "" }, [])
   | _ => none
@@ -114,7 +121,7 @@ def handleEdit (s : AppState) (field : Nat) (val : String) : AppState × List La
   if field == 1 then
     (bump { s with docsSearch := val }, [])
   else if field == 2 then
-    (bump { s with sandboxSource := val }, [])
+    (bump { s with sandboxPreset := "custom", sandboxSource := val }, [])
   else
     (s, [])
 

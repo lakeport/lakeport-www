@@ -2,13 +2,13 @@ import SiteContract.Versions
 import SiteContract.Wire
 import SiteContract.Api
 /-!
-# `Site.Demo` — Verified Escrow Workbench, Rollout Scrubber & Dead-Code Explorer
+# `Site.Demo` — Verified Escrow Workbench, Rollout Track & Reachability Model
 
 Pure Lean domain state machines backing:
-1. Homepage **"Agent Patch vs. Lean Kernel" Live Workbench** (`WorkbenchState`)
+1. Homepage **"One retry. $25 missing." Live WebAssembly Demonstration** (`WorkbenchState`)
 2. Docs **`<ContractSimulator />`** (`ContractSimState`)
 3. Homepage & Docs **`<RolloutTimeline />`** (`RolloutStage`)
-4. Ecosystem & Docs **`<DeadCodeExplorer />`** (`DceState`)
+4. Packages & Docs **`<DeadCodeExplorer />`** (`DceState`)
 -/
 namespace Site.Demo
 open Site.Contract Site.Contract.Wire
@@ -16,9 +16,9 @@ open Site.Contract Site.Contract.Wire
 /-! ## 1. Agent Patch Modes & Server Profiles -/
 
 inductive AgentPatch where
-  | verified      -- Patch A: exhaustive union + Gate.permits + uncertain delivery lock
-  | buggyRetry    -- Patch B: clears inFlight & double-debits on socket retry (refuted by Lean)
-  | unhandledV3   -- Patch C: adds Version.v3 without updating clientHandler (compile error)
+  | verified      -- Checked reducer: exhaustive union + Gate.permits + uncertain delivery lock
+  | buggyRetry    -- Agent's patch: clears inFlight & double-debits on socket retry (refuted by Lean)
+  | unhandledV3   -- Recorded compile fixture: adds Version.v3 without updating clientHandler
   deriving DecidableEq, Repr, Inhabited
 
 namespace AgentPatch
@@ -32,16 +32,6 @@ def parse : String → AgentPatch
   | "buggy-retry" => .buggyRetry
   | "unhandled-v3" => .unhandledV3
   | _ => .verified
-
-def badge : AgentPatch → String
-  | .verified => "KERNEL ACCEPTED"
-  | .buggyRetry => "PROOF REFUTED"
-  | .unhandledV3 => "TYPE ERROR"
-
-def title : AgentPatch → String
-  | .verified => "Patch A: Verified escrow + gate"
-  | .buggyRetry => "Patch B: Agent naive retry fix"
-  | .unhandledV3 => "Patch C: Unhandled Version.v3"
 
 end AgentPatch
 
@@ -64,9 +54,9 @@ def parse : String → ServerMode
   | _ => .fullV2
 
 def label : ServerMode → String
-  | .legacyV1 => "Server: v1 legacy"
-  | .stagedDual => "Server: v1+v2 (gate closed)"
-  | .fullV2 => "Server: v2 + instant_release"
+  | .legacyV1 => "v1 legacy"
+  | .stagedDual => "v1 + v2 (gate off)"
+  | .fullV2 => "v2 + instant_release"
 
 def advertisement : ServerMode → Advertisement
   | .legacyV1 => legacyServerAd
@@ -101,6 +91,14 @@ structure Ledger where
 def Ledger.totalCents (l : Ledger) : Nat :=
   l.available + l.held + l.released
 
+/-- Quarter units (`0..4`) of `$100.00` for visual bar proportioning. -/
+def centsQuarterTag (cents : Nat) : String :=
+  if cents == 0 then "0"
+  else if cents <= 2500 then "1"
+  else if cents <= 5000 then "2"
+  else if cents <= 7500 then "3"
+  else "4"
+
 /-- Erased `Prop` invariant proved in `WorkbenchLaws.lean`. -/
 def LedgerConserved (l : Ledger) (initial : Nat) : Prop :=
   l.totalCents = initial ∧
@@ -119,8 +117,8 @@ inductive LedgerAction where
   | reset
   deriving DecidableEq, Repr
 
-/-- Verified production transition function (`Patch A`).
-    Every branch conserves `totalCents` and enforces `permitsV2Command` / `permitsEncodedFrame`. -/
+/-- Checked transition function (`stepVerifiedLedger`).
+    Every non-reset branch conserves `totalCents` and enforces `permitsV2Command` / `permitsEncodedFrame`. -/
 def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger × WireLogEntry
   | .reserve25 =>
     let cid := "cid-" ++ Nat.repr l.nextCid
@@ -137,7 +135,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
        { seq := l.nextCid, direction := "OUT", summary := "Reserved $25.00 into escrow", frame })
     else
       (l, { seq := l.nextCid, direction := "HOLD",
-            summary := "Reserve skipped (reconcile in-flight transfer or check balance)",
+            summary := "Second reserve blocked while uncertain transfer awaits sync",
             frame := "noop", blocked := true })
   | .settleMilestone =>
     let cid := "cid-" ++ Nat.repr l.nextCid
@@ -148,7 +146,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
           released := l.released + l.held
           delivery := .idle
           nextCid := l.nextCid + 1 },
-       { seq := l.nextCid, direction := "ACK", summary := "Server settled held escrow to recipient", frame })
+       { seq := l.nextCid, direction := "ACK", summary := "Settled held escrow to recipient", frame })
     else
       (l, { seq := l.nextCid, direction := "HOLD", summary := "No held escrow to settle", frame := "noop", blocked := true })
   | .instantRelease25 =>
@@ -167,7 +165,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
     else
       let raw := V2.encodeReq cmd
       (l, { seq := l.nextCid, direction := "GATE",
-            summary := "Gate.permits = false (server has not advertised instant_release)",
+            summary := "Command blocked: server has not advertised instant_release",
             frame := raw, blocked := true })
   | .dropSocket =>
     match l.delivery with
@@ -213,22 +211,31 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
   | .reset =>
     ({}, { seq := 1, direction := "INIT", summary := "Reset ledger to $100.00 available", frame := "CAPS/1" })
 
-/-- Buggy AI agent retry logic (`Patch B`): clears `delivery := .idle` on socket drop and
-    re-debits `available` without crediting `held` when retrying, losing $25.00 of conservation! -/
+/-- Faulty agent retry logic: clears `delivery := .idle` on socket drop and
+    re-debits `available` without crediting `held` when retrying, losing $25.00 of conservation. -/
 def stepBuggyAgentRetry (l : Ledger) : Ledger :=
   let afterReserve : Ledger :=
     { l with available := l.available - 2500, held := l.held + 2500, delivery := .inFlight "cid-1" 2500 }
   let afterDropUnlocked : Ledger :=
     { afterReserve with delivery := .idle }
-  -- Bug: agent retries debiting `available` while server already committed the first debit separately
   { afterDropUnlocked with available := afterDropUnlocked.available - 2500, delivery := .inFlight "cid-2" 2500 }
 
+/-- Deterministic 3-step checked comparison (`reserve25 -> dropSocket -> reserve25`).
+    Demonstrates that the checked reducer locks `cid-1` as `.uncertain` and blocks the duplicate retry. -/
+def stepCheckedRetryComparison (srv : ServerMode) : Ledger × List WireLogEntry :=
+  let (l1, e1) := stepVerifiedLedger srv {} .reserve25
+  let (l2, e2) := stepVerifiedLedger srv l1 .dropSocket
+  let (l3, e3) := stepVerifiedLedger srv l2 .reserve25
+  (l3, [e3, e2, e1])
+
 structure WorkbenchState where
-  patch : AgentPatch := .verified
+  patch : AgentPatch := .buggyRetry
   server : ServerMode := .stagedDual
   ledger : Ledger := {}
   buggyPreview : Option Ledger := none
+  checkedCompared : Bool := false
   proofDrawerOpen : Bool := false
+  contractExplorerOpen : Bool := false
   logs : List WireLogEntry := [
     { seq := 0, direction := "BOOT",
       summary := "Negotiated lpw2 baseline; instant_release capability currently OFF",
@@ -248,8 +255,10 @@ def pushLog (w : WorkbenchState) (entry : WireLogEntry) : List WireLogEntry :=
 def applyWorkbenchAction (w : WorkbenchState) (act : LedgerAction) : WorkbenchState :=
   let (l', logEntry) := stepVerifiedLedger w.server w.ledger act
   { w with
+    patch := .verified
     ledger := l'
     buggyPreview := none
+    checkedCompared := if act == .reset then false else w.checkedCompared
     logs := if act == .reset then [logEntry] else pushLog w logEntry }
 
 def triggerCounterexample (w : WorkbenchState) : WorkbenchState :=
@@ -257,11 +266,24 @@ def triggerCounterexample (w : WorkbenchState) : WorkbenchState :=
   let entry : WireLogEntry := {
     seq := w.ledger.nextCid + 1
     direction := "COUNTEREX"
-    summary := "Lean refuted Patch B: available=$50 + held=$25 + released=$0 = $75.00 (!= $100.00)"
+    summary := "Counterexample executed: $50.00 available + $25.00 held + $0.00 released = $75.00"
     frame := "totalCents = 7500 != 10000"
     blocked := true
   }
-  { w with patch := .buggyRetry, buggyPreview := some broken, logs := pushLog w entry }
+  { w with
+    patch := .buggyRetry
+    buggyPreview := some broken
+    checkedCompared := false
+    logs := pushLog w entry }
+
+def triggerCheckedComparison (w : WorkbenchState) : WorkbenchState :=
+  let (l3, entries) := stepCheckedRetryComparison w.server
+  { w with
+    patch := .verified
+    ledger := l3
+    buggyPreview := none
+    checkedCompared := true
+    logs := (entries ++ w.logs).take 5 }
 
 /-! ## 2. Embedded `<ContractSimulator />` State -/
 
@@ -321,7 +343,7 @@ def simEncodedFrame (s : ContractSimState) : String :=
 def simPermitted (s : ContractSimState) : Bool :=
   permitsEncodedFrame (simParsedAd s) (simEncodedFrame s)
 
-/-! ## 3. Embedded `<RolloutTimeline />` 4-Stage Scrubber -/
+/-! ## 3. Embedded `<RolloutTimeline />` 4-Stage Track -/
 
 inductive RolloutStage where
   | stage1FrontendFirst
@@ -348,35 +370,45 @@ def ofIndex : Nat → RolloutStage
   | 3 => .stage3EnableCap
   | _ => .stage4WithdrawRollback
 
+def stepNumber : RolloutStage → String
+  | .stage1FrontendFirst => "01"
+  | .stage2DualServer => "02"
+  | .stage3EnableCap => "03"
+  | .stage4WithdrawRollback => "04"
+
 def shortTitle : RolloutStage → String
-  | .stage1FrontendFirst => "1. Ship frontend"
-  | .stage2DualServer => "2. Dual server"
-  | .stage3EnableCap => "3. Enable flag"
-  | .stage4WithdrawRollback => "4. Safe rollback"
+  | .stage1FrontendFirst => "Ship frontend"
+  | .stage2DualServer => "Dual server"
+  | .stage3EnableCap => "Enable capability"
+  | .stage4WithdrawRollback => "Withdraw flag"
 
 def headline : RolloutStage → String
-  | .stage1FrontendFirst => "Release the new Lakeport client first (capability gate closed)"
-  | .stage2DualServer => "Roll out backend pods serving both v1 and v2 (flag still off)"
-  | .stage3EnableCap => "Advertise instant_release in GET /api/capabilities"
-  | .stage4WithdrawRollback => "Withdraw capability flag to roll back in seconds without redeploying"
+  | .stage1FrontendFirst => "Ship the new client first while the capability gate stays closed."
+  | .stage2DualServer => "Update backend pods to serve both v1 and v2 while the capability stays off."
+  | .stage3EnableCap => "Advertise instant_release in GET /api/capabilities to open the gate."
+  | .stage4WithdrawRollback => "Withdraw the capability flag to hide the control without redeploying binaries."
 
 def serverAdSummary : RolloutStage → String
-  | .stage1FrontendFirst => "versions: [lpw1]  |  capabilities: []"
-  | .stage2DualServer => "versions: [lpw1, lpw2]  |  capabilities: [audit_receipt]"
-  | .stage3EnableCap => "versions: [lpw1, lpw2]  |  capabilities: [instant_release, audit_receipt]"
-  | .stage4WithdrawRollback => "versions: [lpw1, lpw2]  |  capabilities: [audit_receipt]"
+  | .stage1FrontendFirst => "versions: [lpw1] · capabilities: []"
+  | .stage2DualServer => "versions: [lpw1, lpw2] · capabilities: [audit_receipt]"
+  | .stage3EnableCap => "versions: [lpw1, lpw2] · capabilities: [instant_release, audit_receipt]"
+  | .stage4WithdrawRollback => "versions: [lpw1, lpw2] · capabilities: [audit_receipt]"
 
 def cachedOldClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Speaks lpw1 normally; zero awareness of v2."
-  | .stage2DualServer => "Continues speaking lpw1 against dual-version pods without errors."
-  | .stage3EnableCap => "Continues speaking lpw1 until tab refreshes."
+  | .stage1FrontendFirst => "Speaks lpw1 normally; never sees v2 messages."
+  | .stage2DualServer => "Continues speaking lpw1 against dual-version pods."
+  | .stage3EnableCap => "Continues speaking lpw1 until the tab refreshes."
   | .stage4WithdrawRollback => "Unaffected; lpw1 baseline stays online."
 
 def newClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Negotiates lpw1; hides Instant Release button; Gate blocks v2 frames."
-  | .stage2DualServer => "Upgrades baseline framing to lpw2; Instant Release stays hidden & gated."
-  | .stage3EnableCap => "Reveals Instant Release control; Gate.permits opens for instantRelease."
-  | .stage4WithdrawRollback => "Hides control on capability refresh; outbox holds unnegotiated v2 retries."
+  | .stage1FrontendFirst => "Understands v2; keeps Instant Release hidden."
+  | .stage2DualServer => "Frames baseline traffic in lpw2; Instant Release stays hidden."
+  | .stage3EnableCap => "Reveals Instant Release control; Gate.permits admits commands."
+  | .stage4WithdrawRollback => "Hides control on capability refresh; rejects unnegotiated v2 writes."
+
+def admissionSummary : RolloutStage → String
+  | .stage3EnableCap => "instantRelease admitted (Gate.permits = true)"
+  | _ => "instantRelease blocked before socket write (Gate.permits = false)"
 
 def gateOpen : RolloutStage → Bool
   | .stage3EnableCap => true
@@ -384,7 +416,7 @@ def gateOpen : RolloutStage → Bool
 
 end RolloutStage
 
-/-! ## 4. Embedded `<DeadCodeExplorer />` Reservoir Bundle Calculator -/
+/-! ## 4. Embedded `<DeadCodeExplorer />` Illustrative Reachability Model -/
 
 inductive UsageProfile where
   | fullDocsSite
@@ -405,9 +437,9 @@ def parse : String → UsageProfile
   | _ => .fullDocsSite
 
 def label : UsageProfile → String
-  | .fullDocsSite => "App uses full MDX + v1/v2 contract"
-  | .slugOnlyUtility => "App calls LakeportMdx.slugify only"
-  | .v1RetiredClean => "After retiring Version.v1 via .ilean"
+  | .fullDocsSite => "Full MDX + v1/v2 contract"
+  | .slugOnlyUtility => "LakeportMdx.slugify only"
+  | .v1RetiredClean => "After retiring Version.v1"
 
 end UsageProfile
 
@@ -423,7 +455,7 @@ structure DceMetrics where
   proofRuntimeBytes : Nat
   reachableDecls : Nat
   droppedDecls : Nat
-  gzipWasmKb : Nat
+  modeledSliceKb : Nat
   deriving DecidableEq, Repr
 
 def computeDceMetrics (d : DceState) : DceMetrics :=
@@ -434,7 +466,7 @@ def computeDceMetrics (d : DceState) : DceMetrics :=
     | .fullDocsSite => 96 + (if d.includeLedgerPkg then 18 else 0) + (if d.includeChartsPkg then 0 else 0)
     | .slugOnlyUtility => 34 + (if d.includeLedgerPkg then 12 else 0)
     | .v1RetiredClean => 82 + (if d.includeLedgerPkg then 18 else 0)
-  let wasmKb := match d.profile with
+  let sliceKb := match d.profile with
     | .fullDocsSite => 68 + (if d.includeLedgerPkg then 6 else 0)
     | .slugOnlyUtility => 41 + (if d.includeLedgerPkg then 4 else 0)
     | .v1RetiredClean => 62 + (if d.includeLedgerPkg then 6 else 0)
@@ -443,6 +475,6 @@ def computeDceMetrics (d : DceState) : DceMetrics :=
     proofRuntimeBytes := 0
     reachableDecls := reachable
     droppedDecls := totalDecls - reachable
-    gzipWasmKb := wasmKb }
+    modeledSliceKb := sliceKb }
 
 end Site.Demo
