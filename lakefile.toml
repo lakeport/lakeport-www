@@ -1,0 +1,52 @@
+name = "lakeport-www"
+version = "0.1.0"
+defaultTargets = ["LakeportWww"]
+
+[[lean_lib]]
+name = "LakeportWww"
+srcDir = "src"
+roots = ["App"]
+
+[lakeport]
+bundleId = "dev.lakeport.www"
+applicationId = "dev.lakeport.www"
+entry = "App"
+app = "App.app"
+css = "src/app.css"
+outDir = "dist"
+hostEpoch = [42, 1, 1]
+nodeCapacity = 65536
+
+[lakeport.web]
+title = "Lakeport: Cross-platform apps in Lean 4"
+description = "Build fast WebAssembly and native apps in Lean 4 where edge contracts, offline retries, and domain invariants are checked by the Lean kernel."
+mode = "ssg"
+themeColor = "#0b1220"
+caps = { publicCap = 524288, heldCap = 262144 }
+ssgRoutes = [
+  "/",
+  "/why-lean",
+  "/ecosystem",
+  "/showcase",
+  "/docs",
+  "/docs/introduction",
+  "/docs/installation",
+  "/docs/getting-started",
+  "/docs/versioned-contracts",
+  "/docs/frontend-first-releases",
+  "/docs/pure-core-and-proofs",
+  "/docs/views-and-tsx",
+  "/docs/styling-and-lpcss",
+  "/docs/routing-and-ssg",
+  "/docs/effects-and-offline",
+  "/docs/reservoir-and-bundle-size",
+  "/docs/cli-and-mcp"
+]
+
+[[require]]
+name = "site-contract"
+path = "shared"
+
+[[require]]
+name = "lakeport-mdx"
+path = "packages/lakeport-mdx"

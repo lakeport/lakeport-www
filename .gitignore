@@ -1,0 +1,10 @@
+.lake/
+.lakeport/
+.wrangler/
+.dev.vars
+.dev.vars.*
+dist/
+node_modules/
+*.olean
+*.ilean
+*.c
