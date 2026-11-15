@@ -6,10 +6,10 @@ import Events
 import Brand
 set_option synthInstance.maxSize 4096
 /-!
-# `Site.Widgets` — Live WebAssembly Escrow Vessel, Rollout Track & Docs Simulators
+# `Site.Widgets`: Live WebAssembly Checkout Simulator, Rollout Track & Docs Widgets
 
 Pure `.lp` TSX components backed by `Site.Demo` and `Site.Contract`:
-- `workbenchVesselView`: Homepage "One retry. $25 missing." live Wasm demonstration
+- `workbenchVesselView`: Homepage flaky-Wi-Fi checkout simulator
 - `contractSimulatorView`: `<ContractSimulator />` embedded inside `04-versioned-contracts.mdx`
 - `rolloutTimelineView`: `<RolloutTimeline />` embedded on `/` and `05-frontend-first-releases.mdx`
 - `deadCodeExplorerView`: `<DeadCodeExplorer />` embedded on `/ecosystem` and `11-reservoir-and-bundle-size.mdx`
@@ -48,8 +48,8 @@ def primaryBtn (label : String) (ev : UiEvent) : V :=
     <span class="btn-label">{label}</span>
   </div>
 
-def beaconBtn (label : String) (ev : UiEvent) : V :=
-  <div class="btn-beacon">
+def amberBtn (label : String) (ev : UiEvent) : V :=
+  <div class="btn-amber">
     <button class="hit-overlay" onClick={ev}>{label}</button>
     <span class="btn-label">{label}</span>
   </div>
@@ -60,210 +60,161 @@ def inlineLinkBtn (label : String) (ev : UiEvent) : V :=
     <span class="inline-link-text">{label}</span>
   </div>
 
-/-! ## 1. Homepage Live Wasm Demonstration ("One retry. $25 missing.") -/
+/-! ## 1. Homepage Flaky-Wi-Fi Checkout Simulator -/
 
-private def codeLine (num text : String) (tone : String := "plain") : V :=
+private def codeLine (text : String) (tone : String := "plain") : V :=
   <div class="wb-code-line" data-tone={tone}>
-    <span class="wb-ln">{num}</span>
     <span class="wb-code-src">{text}</span>
   </div>
 
-private def buggyPatchSourceView : V :=
+private def buggyDraftSourceView : V :=
   <div class="wb-code-body">
-    {codeLine "01" "def stepBuggyAgentRetry (l : Ledger) : Ledger :="}
-    {codeLine "02" "  let afterReserve :="}
-    {codeLine "03" "    { l with available := l.available - 2500,"}
-    {codeLine "04" "             held := l.held + 2500,"}
-    {codeLine "05" "             delivery := .inFlight \"cid-1\" 2500 }"}
-    {codeLine "06" "  -- Socket closes before ACK; agent clears flight lock:" "comment"}
-    {codeLine "07" "  let afterDrop := { afterReserve with delivery := .idle }" "fault"}
-    {codeLine "08" "  -- Retry debits $25.00 a second time without crediting held:" "comment"}
-    {codeLine "09" "  { afterDrop with available := afterDrop.available - 2500," "fault"}
-    {codeLine "10" "                   delivery := .inFlight \"cid-2\" 2500 }" "fault"}
+    {codeLine "def stepBuggyAgentRetry (l : Ledger) : Ledger :="}
+    {codeLine "  let afterSend :="}
+    {codeLine "    { l with available := l.available - 2500,"}
+    {codeLine "             held := l.held + 2500,"}
+    {codeLine "             delivery := .inFlight \"pay_1\" 2500 }"}
+    {codeLine "  let afterTimeoutUnlocked := { afterSend with delivery := .idle }" "fault"}
+    {codeLine "  { afterTimeoutUnlocked with available := afterTimeoutUnlocked.available - 2500," "fault"}
+    {codeLine "                              delivery := .inFlight \"pay_2\" 2500 }" "fault"}
   </div>
 
-private def checkedReducerSourceView : V :=
+private def checkedVersionSourceView : V :=
   <div class="wb-code-body">
-    {codeLine "01" "def stepVerifiedLedger (srv : ServerMode) (l : Ledger) :="}
-    {codeLine "02" "  | .dropSocket =>"}
-    {codeLine "03" "    match l.delivery with"}
-    {codeLine "04" "    | .inFlight cid c => ({ l with delivery := .uncertain cid c }, netLog)" "guard"}
-    {codeLine "05" "    | _ => (l, netLog)"}
-    {codeLine "06" "  | .reserve25 =>"}
-    {codeLine "07" "    if l.delivery == .idle && 2500 <= l.available then" "guard"}
-    {codeLine "08" "      ({ l with available := l.available - 2500,"}
-    {codeLine "09" "                held := l.held + 2500, delivery := .inFlight cid 2500 }, outLog)"}
-    {codeLine "10" "    else (l, holdBlockedLog) -- duplicate retry rejected until sync"}
+    {codeLine "def stepVerifiedLedger (srv : ServerMode) (l : Ledger) :="}
+    {codeLine "  | .dropSocket =>"}
+    {codeLine "    match l.delivery with"}
+    {codeLine "    | .inFlight cid c => ({ l with delivery := .uncertain cid c }, netLog)" "guard"}
+    {codeLine "    | _ => (l, netLog)"}
+    {codeLine "  | .reserve25 =>"}
+    {codeLine "    if l.delivery == .idle && 2500 <= l.available then" "guard"}
+    {codeLine "      debitOnce l else keepLocked l" "guard"}
   </div>
 
 def workbenchVesselView (wb : WorkbenchState) : V :=
-  let isBuggyTab := wb.patch == .buggyRetry
-  let shown : Ledger :=
-    match wb.patch, wb.buggyPreview with
-    | .buggyRetry, some broken => broken
-    | _, _ => wb.ledger
-  let violated := isBuggyTab && wb.buggyPreview.isSome
-  let missingCents := if shown.totalCents < 10000 then 10000 - shown.totalCents else 0
-  let flightLabel :=
-    match shown.delivery with
-    | .idle => "delivery: .idle"
-    | .inFlight cid _ => "delivery: .inFlight (" ++ cid ++ ")"
-    | .uncertain cid _ => "delivery: .uncertain (" ++ cid ++ " locked)"
+  let out := runCheckout wb.mode wb.netRun
+  let outcomeTone :=
+    if wb.netRun == .idle then "idle"
+    else if out.overcharged then "fault"
+    else "ok"
   <div class="wb-wrap">
     <div class="wb-vessel">
       <div class="wb-pane-code">
         <div class="wb-pane-bar">
           <div class="wb-tabs">
-            <button class="wb-tab" data-active={isBuggyTab} onClick={Ev.wbPatch .buggyRetry}>
-              {"Agent's patch"}
+            <button class="wb-tab" data-active={wb.mode == .agentDraft} onClick={Ev.wbMode .agentDraft}>
+              1. Agent's first draft (tests pass)
             </button>
-            <button class="wb-tab" data-active={!isBuggyTab} onClick={Ev.wbPatch .verified}>
-              {"Checked reducer"}
+            <button class="wb-tab" data-active={wb.mode == .lakeportFixed} onClick={Ev.wbMode .lakeportFixed}>
+              2. After Lakeport's compiler check
             </button>
           </div>
-          <span class="wb-file-path">src/Demo/Workbench.lean</span>
         </div>
 
-        {if isBuggyTab then buggyPatchSourceView else checkedReducerSourceView}
+        <p class="wb-explain">
+          {if wb.mode == .agentDraft then
+            "You asked your coding agent to auto-retry a $25.00 checkout when Wi-Fi drops. Its unit test runs on a healthy connection and passes, so a normal CI pipeline turns green. On a real timeout, the highlighted retry block unlocks the payment early."
+           else
+            "Lakeport's compiler rejected the first draft because unlocking an in-flight payment broke your no-double-charge rule. With that compiler error, the agent kept pay_1 locked as uncertain until the server confirms what happened."}
+        </p>
+
+        {if wb.mode == .agentDraft then buggyDraftSourceView else checkedVersionSourceView}
 
         <div class="wb-code-foot">
-          {if isBuggyTab then
-            evidenceItem .proved "buggy_retry_loses_conservation (refuted in Lean)"
-           else if wb.checkedCompared then
-            evidenceItem .proved "checked_retry_comparison_conserves (0 custom axioms)"
+          {if wb.mode == .agentDraft then
+            evidenceItem .failed "Rejected by lakeport check: retry path can bill $25.00 twice" false
            else
-            evidenceItem .proved "verified_nonreset_conserves (0 custom axioms)"}
+            evidenceItem .proved "Accepted by lakeport check: customer is billed at most $25.00" false}
         </div>
       </div>
 
       <div class="wb-pane-state">
         <div class="wb-pane-bar">
-          <span class="wb-pane-kicker">LIVE WASM ESCROW</span>
-          <span class="wb-flight-tag" data-locked={shown.delivery != .idle}>{flightLabel}</span>
+          <span class="wb-pane-title">$25.00 Checkout Simulator</span>
+          <span class="wb-file-path">Live WebAssembly</span>
         </div>
 
         <div class="wb-state-body">
-          <div class="wb-total-row">
-            <span class="wb-total-num" data-violated={violated}>{formatUsd shown.totalCents}</span>
-            <span class="wb-total-target">
-              {if violated then "of $100.00 · $25.00 missing" else "of $100.00 conserved"}
-            </span>
-          </div>
-
-          <div class="wb-bar-track">
-            <span class="wb-seg wb-seg-avail" data-q={centsQuarterTag shown.available} />
-            <span class="wb-seg wb-seg-held" data-q={centsQuarterTag shown.held} />
-            <span class="wb-seg wb-seg-rel" data-q={centsQuarterTag shown.released} />
-            <span class="wb-seg wb-seg-missing" data-q={centsQuarterTag missingCents} />
-          </div>
-
-          <div class="wb-buckets">
-            <div class="wb-bucket">
-              <span class="wb-bucket-key">
-                <span class="wb-swatch" data-kind="avail" />
-                <span>Available</span>
-              </span>
-              <span class="wb-bucket-val">{formatUsd shown.available}</span>
+          <div class="wb-wallet-grid">
+            <div class="wb-wallet-card">
+              <span class="wb-wallet-label">Customer wallet</span>
+              <span class="wb-total-num" data-violated={out.overcharged}>{formatUsd out.walletCents}</span>
+              <span class="wb-wallet-note">Started with $100.00</span>
             </div>
-            <div class="wb-bucket">
-              <span class="wb-bucket-key">
-                <span class="wb-swatch" data-kind="held" />
-                <span>Held</span>
+
+            <div class="wb-wallet-card">
+              <span class="wb-wallet-label">Charged for $25.00 item</span>
+              <span class="wb-charged-num" data-violated={out.overcharged} data-ok={wb.netRun != .idle && !out.overcharged}>
+                {formatUsd out.chargedCents}
               </span>
-              <span class="wb-bucket-val">{formatUsd shown.held}</span>
-            </div>
-            <div class="wb-bucket">
-              <span class="wb-bucket-key">
-                <span class="wb-swatch" data-kind="rel" />
-                <span>Released</span>
+              <span class="wb-wallet-note">
+                {if wb.netRun == .idle then "Click a Wi-Fi test below"
+                 else if out.overcharged then "Billed twice for one item"
+                 else "Billed once as expected"}
               </span>
-              <span class="wb-bucket-val">{formatUsd shown.released}</span>
             </div>
           </div>
 
           <div class="wb-primary-actions">
-            {beaconBtn "Run faulty retry" Ev.wbCounterexample}
-            <button class="wb-secondary-btn" onClick={Ev.wbCompareChecked}>
-              Compare checked reducer
+            {amberBtn "Pay $25 on flaky Wi-Fi" (Ev.wbRun .flakyWifi)}
+            <button class="wb-secondary-btn" data-active={wb.netRun == .normalWifi} onClick={Ev.wbRun .normalWifi}>
+              Pay $25 on normal Wi-Fi
             </button>
+            {if wb.netRun != .idle then
+              <button class="wb-reset-btn" onClick={Ev.wbRun .idle}>Reset</button>
+             else <span>{""}</span>}
           </div>
 
-          <div class="wb-step-strip">
-            <span class="wb-step-label">Step reducer:</span>
-            <button class="wb-step-btn" onClick={Ev.wbAction "reserve"}>Reserve $25.00</button>
-            <button class="wb-step-btn" onClick={Ev.wbAction "drop"}>Drop socket</button>
-            <button class="wb-step-btn" onClick={Ev.wbAction "settle"}>Settle held</button>
-            <button class="wb-step-btn" onClick={Ev.wbAction "reconcile"}>Reconcile sync</button>
-            <button class="wb-step-btn" onClick={Ev.wbAction "reset"}>Reset</button>
+          <div class="wb-outcome-box" data-state={outcomeTone}>
+            <p class="wb-outcome-head">{out.headline}</p>
+            <div class="wb-outcome-steps">
+              <p class="wb-outcome-step">{out.step1}</p>
+              <p class="wb-outcome-step">{out.step2}</p>
+              {if out.step3.isEmpty then <span>{""}</span>
+               else <p class="wb-outcome-step">{out.step3}</p>}
+            </div>
+            {if wb.mode == .agentDraft && wb.netRun == .flakyWifi then
+              <div class="wb-fix-cta">
+                <button class="wb-fix-btn" onClick={Ev.wbSeeCheckedFix}>
+                  See Lakeport's checked fix on flaky Wi-Fi →
+                </button>
+              </div>
+             else <span>{""}</span>}
           </div>
-        </div>
-
-        <div class="wb-verdict-bar" data-violated={violated}>
-          {if violated then
-            evidenceItem .failed "LedgerConserved ($100.00 → $75.00 after socket retry)"
-           else if wb.checkedCompared then
-            evidenceItem .proved "Duplicate retry rejected while cid-1 awaits reconciliation"
-           else
-            evidenceItem .proved "LedgerConserved ($100.00 / $100.00 across stepVerifiedLedger)"}
         </div>
       </div>
     </div>
 
     <div class="wb-disclosures">
       <div class="wb-disclosure-bar">
-        <button class="wb-disclosure-btn" data-open={wb.proofDrawerOpen} onClick={Ev.wbProofDrawer}>
-          {if wb.proofDrawerOpen then "− Hide evidence & axioms" else "+ Inspect evidence & axioms"}
-        </button>
-        <button class="wb-disclosure-btn" data-open={wb.contractExplorerOpen} onClick={Ev.wbContractExplorer}>
-          {if wb.contractExplorerOpen then "− Hide wire & capability gates" else "+ Explore wire & capability gates"}
+        <button class="wb-disclosure-btn" data-open={wb.ruleOpen} onClick={Ev.wbToggleRule}>
+          {if wb.ruleOpen then "Hide the Lean rule the agent wrote"
+           else "Curious what the proof looks like? Show the rule the agent wrote"}
         </button>
       </div>
 
-      {if wb.proofDrawerOpen then
+      {if wb.ruleOpen then
         <div class="wb-drawer">
           <div class="wb-drawer-col">
-            <span class="wb-drawer-title">Kernel-checked modules (39 theorems · 0 B emitted C/Wasm)</span>
-            {evidenceItem .proved "SiteContract/ContractLaws.lean · 16 theorems (wire round-trip + gate)"}
-            {evidenceItem .proved "Demo/WorkbenchLaws.lean · 12 theorems (conservation + retry refutation)"}
-            {evidenceItem .proved "LakeportMdx/MdxLaws.lean · 6 theorems (SafeSlug + TOC coherence)"}
-            {evidenceItem .proved "SiteLaws.lean · 5 theorems (URL round-trip + MemoCell coherence)"}
+            <span class="wb-drawer-title">What you tell your coding agent</span>
+            <p class="wb-rule-quote">
+              "Never charge a customer more than $25.00 for a single $25.00 checkout, even when Wi-Fi drops mid-request."
+            </p>
+            <p class="wb-rule-note">
+              You do not have to write Lean proof syntax yourself. Your agent translates that sentence into the rule on the right, and Lakeport refuses to build if the rule and the code disagree.
+            </p>
           </div>
           <div class="wb-drawer-col">
-            <span class="wb-drawer-title">Explicit trust & measurement boundary</span>
-            {evidenceItem .trusted "Lean 4.35 kernel, C codegen, and clang wasm32 toolchain" false}
-            {evidenceItem .trusted "Host JS shim (boot.mjs, dom-renderer.mjs) and browser DOM/WebSocket APIs" false}
-            {evidenceItem .unknown "Live network latency and third-party edge availability at runtime" false}
-          </div>
-        </div>
-       else <span>{""}</span>}
-
-      {if wb.contractExplorerOpen then
-        <div class="wb-drawer wb-drawer-stack">
-          <div class="wb-gate-controls">
-            <div class="wb-gate-group">
-              <span class="wb-drawer-title">Backend capability advertisement</span>
-              <div class="seg-group">
-                {[ServerMode.legacyV1, .stagedDual, .fullV2].map fun m =>
-                  <button class="seg-btn" data-active={wb.server == m} onClick={Ev.wbServer m}>{m.label}</button>}
-              </div>
+            <span class="wb-drawer-title">What your agent maintains in WorkbenchLaws.lean</span>
+            <div class="theorem-pre">
+              <span class="syn-kw">{"theorem "}</span>
+              <span class="syn-fn">lakeportFixed_never_overcharges</span>
+              <span>{" (net : NetworkRun) :
+  let out := runCheckout .lakeportFixed net
+  "}</span>
+              <span class="syn-ty">{"out.overcharged = false ∧ out.chargedCents ≤ 2500"}</span>
             </div>
-            <div class="wb-gate-group">
-              <span class="wb-drawer-title">Capability-gated v2 frames</span>
-              <div class="seg-group">
-                <button class="seg-btn" data-active={false} onClick={Ev.wbAction "instant"}>Instant release $25.00</button>
-                <button class="seg-btn" data-active={false} onClick={Ev.wbAction "inject"}>Inject unnegotiated v2 frame</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="wire-log">
-            <span class="wb-drawer-title">Recent frames evaluated by app_lp2.wasm</span>
-            {wb.logs.map fun item =>
-              <div class="wire-row" data-blocked={item.blocked}>
-                <span class="wire-dir">{item.direction}</span>
-                <span class="wire-summary">{item.summary}</span>
-                <span class="wire-raw">{item.frame}</span>
-              </div>}
+            {evidenceItem .proved "Checked across every NetworkRun with 0 custom axioms" false}
           </div>
         </div>
        else <span>{""}</span>}
@@ -282,8 +233,8 @@ def contractSimulatorView (sim : ContractSimState) : V :=
   let allowed := simPermitted sim
   <div class="widget-card">
     <div class="widget-header">
-      <span class="widget-title">Edge Contract & Gate Simulator</span>
-      <span class="widget-sub">shared/SiteContract/Api.lean · live in Wasm</span>
+      <span class="widget-title">Client Contract & Capability Simulator</span>
+      <span class="widget-sub">shared/SiteContract/Api.lean, live in Wasm</span>
     </div>
     <div class="seg-group">
       {[ServerMode.legacyV1, .stagedDual, .fullV2].map fun m =>
@@ -310,9 +261,9 @@ def contractSimulatorView (sim : ContractSimState) : V :=
       <div class="spec-row">
         <span class="spec-key">permitsEncodedFrame</span>
         {if allowed then
-          evidenceItem .proved "true (frame admitted by Gate)"
+          evidenceItem .proved "true (frame permitted by client gate)"
          else
-          evidenceItem .failed "false (blocked before socket write)"}
+          evidenceItem .failed "false (blocked in client before socket write)"}
       </div>
     </div>
   </div>
@@ -324,8 +275,8 @@ def rolloutTimelineView (st : RolloutStage) : V :=
     <div class="rollout-stops">
       {RolloutStage.all.map fun item =>
         <div class="rollout-stop" data-active={st == item}>
-          <button class="hit-overlay" onClick={Ev.rollout item.index}>{item.stepNumber ++ " " ++ item.shortTitle}</button>
-          <span class="rollout-stop-num">{item.stepNumber}</span>
+          <button class="hit-overlay" onClick={Ev.rollout item.index}>{item.stageTag ++ " " ++ item.shortTitle}</button>
+          <span class="rollout-stop-num">{item.stageTag}</span>
           <span class="rollout-stop-title">{item.shortTitle}</span>
         </div>}
     </div>
@@ -334,23 +285,23 @@ def rolloutTimelineView (st : RolloutStage) : V :=
 
     <div class="spec-rows">
       <div class="spec-row">
-        <span class="spec-key">Server advertises</span>
+        <span class="spec-key">Your backend</span>
         <span class="spec-mono">{st.serverAdSummary}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Cached old tab</span>
+        <span class="spec-key">Open older tab</span>
         <span class="spec-val">{st.cachedOldClientBehavior}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">New client</span>
+        <span class="spec-key">Updated client</span>
         <span class="spec-val">{st.newClientBehavior}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Gate admission</span>
+        <span class="spec-key">v2 feature gate</span>
         {if st.gateOpen then
-          evidenceItem .proved st.admissionSummary
+          evidenceItem .proved st.admissionSummary false
          else
-          evidenceItem .trusted st.admissionSummary}
+          evidenceItem .trusted st.admissionSummary false}
       </div>
     </div>
   </div>
@@ -361,8 +312,8 @@ def deadCodeExplorerView (d : DceState) : V :=
   let m := computeDceMetrics d
   <div class="widget-card">
     <div class="widget-header">
-      <span class="widget-title">Illustrative Reachability & Proof-Erasure Model</span>
-      <span class="widget-sub">Prop erasure + wasm-ld --gc-sections</span>
+      <span class="widget-title">Package Size & Proof-Stripping Explorer</span>
+      <span class="widget-sub">Proofs erase to 0 B, unused code drops at link time</span>
     </div>
     <div class="seg-group">
       <button class="seg-btn" data-active={d.includeLedgerPkg} onClick={Ev.dceTogglePkg "ledger"}>
@@ -378,20 +329,20 @@ def deadCodeExplorerView (d : DceState) : V :=
     </div>
     <div class="spec-rows">
       <div class="spec-row">
-        <span class="spec-key">Workspace source & proofs</span>
-        <span class="spec-val">{toString m.totalSourceLines ++ " lines (" ++ toString m.theoremProofLines ++ " in theorems)"}</span>
+        <span class="spec-key">Source & proof lines</span>
+        <span class="spec-val">{toString m.totalSourceLines ++ " lines (" ++ toString m.theoremProofLines ++ " lines of proofs)"}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Emitted proof bytes</span>
-        {evidenceItem .proved (toString m.proofRuntimeBytes ++ " B in C & Wasm (dce_proof_bytes_always_zero)")}
+        <span class="spec-key">Proof bytes in output</span>
+        {evidenceItem .proved (toString m.proofRuntimeBytes ++ " bytes in C and WebAssembly")}
       </div>
       <div class="spec-row">
-        <span class="spec-key">Reachable declarations</span>
-        <span class="spec-mono">{toString m.reachableDecls ++ " linked · " ++ toString m.droppedDecls ++ " stripped"}</span>
+        <span class="spec-key">Compiled functions</span>
+        <span class="spec-mono">{toString m.reachableDecls ++ " linked, " ++ toString m.droppedDecls ++ " stripped"}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Modeled feature slice</span>
-        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB modeled slice (full lakeport-www app_lp2.wasm: 463 KB gzipped)"}</span>
+        <span class="spec-key">Estimated slice</span>
+        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB slice (full lakeport-www site: 459 KB gzipped)"}</span>
       </div>
     </div>
   </div>

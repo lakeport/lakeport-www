@@ -7,9 +7,9 @@ import Routes
 import Docs.Registry
 import Demo.Workbench
 /-!
-# `Site.State` — Pure Application State, Proved MDX MemoCell & Reducer
+# `Site.State`: Pure Application State, Proved MDX MemoCell & Reducer
 
-Single source of truth for navigation, theme preference, Homepage Workbench,
+Single source of truth for navigation, theme preference, Homepage Checkout Simulator,
 interactive docs widgets, live MDX Sandbox, and cached `MdxDoc` parsing (`MemoCell`).
 -/
 namespace Site
@@ -21,38 +21,32 @@ title: \"Release notes\"
 section: \"Sandbox\"
 ---
 
-## Ship the frontend first
+## Ship the client before your backend
 
-Edit this source to watch **LakeportMdx** parse and render on keystroke in `wasm32`:
+Type in this box to watch **LakeportMdx** parse Markdown in compiled WebAssembly on every keystroke:
 
-- Older clients continue speaking `lpw1`.
-- Enable `instant_release` once dual-version pods are healthy.
+- Open browser tabs keep reading `v1` responses from your existing server.
+- Updated `v2` buttons stay hidden until your backend turns on the feature flag.
 
-```lean title=\"CapabilityCheck.lean\"
-theorem gate_closed_by_default (cmd : V2.ClientFrame) :
-    permitsV2Command none cmd = false := by
-  rfl
-```
-
-<Callout kind=\"note\" title=\"Zero JS parser\">
-The AST, heading slugs, and syntax tokens come from compiled Lean WebAssembly.
+<Callout kind=\"note\" title=\"No JavaScript markdown bundle\">
+Headings, tables, code blocks, and callouts come directly from the compiled Lakeport app.
 </Callout>"
 
 def sandboxPresetContract : String :=
 "---
-title: \"Contract union snippet\"
+title: \"Active API versions\"
 section: \"Sandbox\"
 ---
 
-## Versioned wire table
+## Client contract table
 
-| Version | Wire tag | Instant release |
+| Server version | Wire tag | Instant payout button |
 | --- | --- | --- |
-| `Version.v1` | `lpw1` | Blocked at Gate |
-| `Version.v2` | `lpw2` | Permitted when advertised |
+| `Version.v1` | `lpw1` | Hidden in client |
+| `Version.v2` | `lpw2` | Shown when server advertises flag |
 
 ```lean title=\"shared/SiteContract/Api.lean\"
-def clientHandler : (v : Version) → Handler v
+def clientHandler : (v : Version) -> Handler v
   | .v1 => { encode := Wire.V1.encodeReq, decode := Wire.V1.decodeResp }
   | .v2 => { encode := Wire.V2.encodeReq, decode := Wire.V2.decodeResp }
 ```"
@@ -96,19 +90,24 @@ structure AppState where
   rolloutStage : RolloutStage := .stage1FrontendFirst
   dce : DceState := {}
   sandboxSource : String := defaultSandboxMdx
-  docCache : MemoCell DocSlug MdxDoc parseDocSlug := MemoCell.init parseDocSlug .introduction
-  sandboxCache : MemoCell String MdxDoc parseMdx := MemoCell.init parseMdx defaultSandboxMdx
+  docCache : MemoCell (Option DocSlug) MdxDoc (fun | some slug => parseDocSlug slug | none => {}) :=
+    MemoCell.init (fun | some slug => parseDocSlug slug | none => {}) none
+  sandboxCache : MemoCell (Option String) MdxDoc (fun | some raw => parseMdx raw | none => {}) :=
+    MemoCell.init (fun | some raw => parseMdx raw | none => {}) none
 
 instance : Inhabited AppState := ⟨{}⟩
 
-/-- Synchronize `MemoCell` caches whenever active doc slug or sandbox text changes. -/
+/-- Synchronize `MemoCell` caches lazily when visiting `/docs/<slug>` or `/ecosystem`. -/
 def syncCaches (s : AppState) : AppState :=
   let activeSlug := match s.router.activeRoute with
-    | .docsPage slug => slug
+    | .docsPage slug => some slug
     | _ => s.docCache.input
+  let activeSandbox := match s.router.activeRoute with
+    | .ecosystem => some s.sandboxSource
+    | _ => s.sandboxCache.input
   { s with
     docCache := s.docCache.refresh activeSlug
-    sandboxCache := s.sandboxCache.refresh s.sandboxSource }
+    sandboxCache := s.sandboxCache.refresh activeSandbox }
 
 /-- Bump monotonic app commit counter and refresh proved caches. -/
 def bump (s : AppState) : AppState :=

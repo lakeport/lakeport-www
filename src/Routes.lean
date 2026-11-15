@@ -1,7 +1,7 @@
 import LakeportRouter
 import Docs.CatalogGen
 /-!
-# `Routes` — Typed Marketing & Documentation URL Codec
+# `Routes` : Typed Marketing & Documentation URL Codec
 
 Maps every marketing page and documentation chapter to its canonical URL path
 and proves `LawfulUrlCodec routeCodec` so links and SSG routes never drift.

@@ -2,38 +2,17 @@ import SiteContract.Versions
 import SiteContract.Wire
 import SiteContract.Api
 /-!
-# `Site.Demo` — Verified Escrow Workbench, Rollout Track & Reachability Model
+# `Site.Demo` : Checkout Retry Demo, Rollout Scrubber & Reachability Model
 
-Pure Lean domain state machines backing:
-1. Homepage **"One retry. $25 missing." Live WebAssembly Demonstration** (`WorkbenchState`)
-2. Docs **`<ContractSimulator />`** (`ContractSimState`)
-3. Homepage & Docs **`<RolloutTimeline />`** (`RolloutStage`)
-4. Packages & Docs **`<DeadCodeExplorer />`** (`DceState`)
+Pure Lean domain logic compiled to WebAssembly for:
+1. Homepage flaky-Wi-Fi checkout simulator (`CheckoutMode`, `NetworkRun`, `runCheckout`)
+2. Underlying escrow & capability state machine (`Ledger`, `stepVerifiedLedger`)
+3. Docs `<ContractSimulator />`, `<RolloutTimeline />`, and `<DeadCodeExplorer />`
 -/
 namespace Site.Demo
 open Site.Contract Site.Contract.Wire
 
-/-! ## 1. Agent Patch Modes & Server Profiles -/
-
-inductive AgentPatch where
-  | verified      -- Checked reducer: exhaustive union + Gate.permits + uncertain delivery lock
-  | buggyRetry    -- Agent's patch: clears inFlight & double-debits on socket retry (refuted by Lean)
-  | unhandledV3   -- Recorded compile fixture: adds Version.v3 without updating clientHandler
-  deriving DecidableEq, Repr, Inhabited
-
-namespace AgentPatch
-
-def slug : AgentPatch → String
-  | .verified => "verified"
-  | .buggyRetry => "buggy-retry"
-  | .unhandledV3 => "unhandled-v3"
-
-def parse : String → AgentPatch
-  | "buggy-retry" => .buggyRetry
-  | "unhandled-v3" => .unhandledV3
-  | _ => .verified
-
-end AgentPatch
+/-! ## 1. Server Capability Profiles & Verified Ledger Core -/
 
 inductive ServerMode where
   | legacyV1
@@ -54,9 +33,9 @@ def parse : String → ServerMode
   | _ => .fullV2
 
 def label : ServerMode → String
-  | .legacyV1 => "v1 legacy"
-  | .stagedDual => "v1 + v2 (gate off)"
-  | .fullV2 => "v2 + instant_release"
+  | .legacyV1 => "v1 only"
+  | .stagedDual => "v1 and v2 (feature off)"
+  | .fullV2 => "v1 and v2 (feature on)"
 
 def advertisement : ServerMode → Advertisement
   | .legacyV1 => legacyServerAd
@@ -87,19 +66,9 @@ structure Ledger where
   nextCid : Nat := 1
   deriving DecidableEq, Repr, Inhabited
 
-/-- Total funds across all three escrow buckets (in cents). -/
 def Ledger.totalCents (l : Ledger) : Nat :=
   l.available + l.held + l.released
 
-/-- Quarter units (`0..4`) of `$100.00` for visual bar proportioning. -/
-def centsQuarterTag (cents : Nat) : String :=
-  if cents == 0 then "0"
-  else if cents <= 2500 then "1"
-  else if cents <= 5000 then "2"
-  else if cents <= 7500 then "3"
-  else "4"
-
-/-- Erased `Prop` invariant proved in `WorkbenchLaws.lean`. -/
 def LedgerConserved (l : Ledger) (initial : Nat) : Prop :=
   l.totalCents = initial ∧
   match l.delivery with
@@ -117,11 +86,9 @@ inductive LedgerAction where
   | reset
   deriving DecidableEq, Repr
 
-/-- Checked transition function (`stepVerifiedLedger`).
-    Every non-reset branch conserves `totalCents` and enforces `permitsV2Command` / `permitsEncodedFrame`. -/
 def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger × WireLogEntry
   | .reserve25 =>
-    let cid := "cid-" ++ Nat.repr l.nextCid
+    let cid := "pay_" ++ Nat.repr l.nextCid
     let ad := srv.advertisement
     if l.delivery == .idle && 2500 <= l.available then
       let frame := match negotiateVersion ad with
@@ -132,25 +99,25 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
           held := l.held + 2500
           delivery := .inFlight cid 2500
           nextCid := l.nextCid + 1 },
-       { seq := l.nextCid, direction := "OUT", summary := "Reserved $25.00 into escrow", frame })
+       { seq := l.nextCid, direction := "SEND", summary := "Sent $25.00 payment request", frame })
     else
-      (l, { seq := l.nextCid, direction := "HOLD",
-            summary := "Second reserve blocked while uncertain transfer awaits sync",
+      (l, { seq := l.nextCid, direction := "LOCK",
+            summary := "Duplicate retry skipped while original payment awaits confirmation",
             frame := "noop", blocked := true })
   | .settleMilestone =>
-    let cid := "cid-" ++ Nat.repr l.nextCid
+    let cid := "pay_" ++ Nat.repr l.nextCid
     if l.held > 0 then
-      let frame := V2.encodeResp (.ack cid l.available 0 (l.released + l.held) "rcpt-verified")
+      let frame := V2.encodeResp (.ack cid l.available 0 (l.released + l.held) "rcpt-ok")
       ({ l with
           held := 0
           released := l.released + l.held
           delivery := .idle
           nextCid := l.nextCid + 1 },
-       { seq := l.nextCid, direction := "ACK", summary := "Settled held escrow to recipient", frame })
+       { seq := l.nextCid, direction := "ACK", summary := "Confirmed $25.00 payment once", frame })
     else
-      (l, { seq := l.nextCid, direction := "HOLD", summary := "No held escrow to settle", frame := "noop", blocked := true })
+      (l, { seq := l.nextCid, direction := "HOLD", summary := "No pending payment", frame := "noop", blocked := true })
   | .instantRelease25 =>
-    let cid := "cid-" ++ Nat.repr l.nextCid
+    let cid := "pay_" ++ Nat.repr l.nextCid
     let cmd := V2.ClientFrame.instantRelease cid 2500
     if permitsV2Command (some srv.advertisement) cmd then
       if l.delivery == .idle && 2500 <= l.available then
@@ -159,88 +126,169 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
             available := l.available - 2500
             released := l.released + 2500
             nextCid := l.nextCid + 1 },
-         { seq := l.nextCid, direction := "OUT+ACK", summary := "Negotiated v2 instant release ($25.00)", frame })
+         { seq := l.nextCid, direction := "ACK", summary := "Processed instant v2 payment ($25.00)", frame })
       else
-        (l, { seq := l.nextCid, direction := "HOLD", summary := "Await uncertain transfer or top up balance", frame := "noop", blocked := true })
+        (l, { seq := l.nextCid, direction := "LOCK", summary := "Payment already in progress", frame := "noop", blocked := true })
     else
       let raw := V2.encodeReq cmd
       (l, { seq := l.nextCid, direction := "GATE",
-            summary := "Command blocked: server has not advertised instant_release",
+            summary := "Blocked locally because server has not enabled instant_release",
             frame := raw, blocked := true })
   | .dropSocket =>
     match l.delivery with
     | .inFlight cid cents =>
       ({ l with delivery := .uncertain cid cents },
-       { seq := l.nextCid, direction := "NET",
-         summary := "Socket closed before ack -> marked .uncertain (" ++ cid ++ " locked)",
-         frame := "wsClose(1006, abnormal)" })
+       { seq := l.nextCid, direction := "DROP",
+         summary := "Wi-Fi dropped before receipt; kept " ++ cid ++ " locked",
+         frame := "wsClose(1006)" })
     | .uncertain cid _ =>
-      (l, { seq := l.nextCid, direction := "NET",
-            summary := "Already awaiting idempotent reconciliation for " ++ cid,
-            frame := "wsClose(1006)" })
+      (l, { seq := l.nextCid, direction := "DROP", summary := cid ++ " remains locked", frame := "wsClose(1006)" })
     | .idle =>
-      (l, { seq := l.nextCid, direction := "NET",
-            summary := "Socket dropped while idle (no in-flight escrow at risk)",
-            frame := "wsClose(1006)" })
+      (l, { seq := l.nextCid, direction := "DROP", summary := "Connection dropped while idle", frame := "wsClose(1006)" })
   | .reconcileReconnect =>
     match l.delivery with
     | .uncertain cid _ =>
       let frame := V2.encodeResp (.ack cid l.available l.held l.released ("reconciled-" ++ cid))
       ({ l with delivery := .idle, nextCid := l.nextCid + 1 },
-       { seq := l.nextCid, direction := "SYNC",
-         summary := "Reconciled " ++ cid ++ " idempotently (0 duplicate debits)",
-         frame })
+       { seq := l.nextCid, direction := "SYNC", summary := "Server confirmed original " ++ cid, frame })
     | .inFlight cid _ =>
       ({ l with delivery := .idle, nextCid := l.nextCid + 1 },
-       { seq := l.nextCid, direction := "ACK", summary := "Confirmed in-flight " ++ cid, frame := "ack(" ++ cid ++ ")" })
+       { seq := l.nextCid, direction := "ACK", summary := "Confirmed " ++ cid, frame := "ack(" ++ cid ++ ")" })
     | .idle =>
-      (l, { seq := l.nextCid, direction := "SYNC", summary := "Outbox clean; capabilities refreshed", frame := "CAPS/1" })
+      (l, { seq := l.nextCid, direction := "SYNC", summary := "Synced capabilities", frame := "CAPS/1" })
   | .injectUnnegotiated =>
-    let cid := "adv-" ++ Nat.repr l.nextCid
+    let cid := "adv_" ++ Nat.repr l.nextCid
     let forged := V2.encodeReq (.instantRelease cid 2500)
     if permitsEncodedFrame (some srv.advertisement) forged then
       if l.delivery == .idle && 2500 <= l.available then
         ({ l with available := l.available - 2500, released := l.released + 2500, nextCid := l.nextCid + 1 },
-         { seq := l.nextCid, direction := "OUT", summary := "Server advertises instant_release; frame admitted", frame := forged })
+         { seq := l.nextCid, direction := "SEND", summary := "Server supports feature; request sent", frame := forged })
       else
-        (l, { seq := l.nextCid, direction := "HOLD", summary := "Admitted by gate, skipped by balance/flight lock", frame := forged, blocked := true })
+        (l, { seq := l.nextCid, direction := "HOLD", summary := "Skipped by balance lock", frame := forged, blocked := true })
     else
       (l, { seq := l.nextCid, direction := "BLOCKED",
             summary := "permitsEncodedFrame rejected unnegotiated v2 frame before socket write",
             frame := forged, blocked := true })
   | .reset =>
-    ({}, { seq := 1, direction := "INIT", summary := "Reset ledger to $100.00 available", frame := "CAPS/1" })
+    ({}, { seq := 1, direction := "RESET", summary := "Reset wallet to $100.00", frame := "CAPS/1" })
 
-/-- Faulty agent retry logic: clears `delivery := .idle` on socket drop and
-    re-debits `available` without crediting `held` when retrying, losing $25.00 of conservation. -/
+/-- Agent's naive retry draft: clears `delivery := .idle` on timeout, then subtracts $25.00 a second time. -/
 def stepBuggyAgentRetry (l : Ledger) : Ledger :=
-  let afterReserve : Ledger :=
-    { l with available := l.available - 2500, held := l.held + 2500, delivery := .inFlight "cid-1" 2500 }
-  let afterDropUnlocked : Ledger :=
-    { afterReserve with delivery := .idle }
-  { afterDropUnlocked with available := afterDropUnlocked.available - 2500, delivery := .inFlight "cid-2" 2500 }
+  let afterSend : Ledger :=
+    { l with available := l.available - 2500, held := l.held + 2500, delivery := .inFlight "pay_1" 2500 }
+  let afterTimeoutUnlocked : Ledger :=
+    { afterSend with delivery := .idle }
+  { afterTimeoutUnlocked with available := afterTimeoutUnlocked.available - 2500, delivery := .inFlight "pay_2" 2500 }
 
-/-- Deterministic 3-step checked comparison (`reserve25 -> dropSocket -> reserve25`).
-    Demonstrates that the checked reducer locks `cid-1` as `.uncertain` and blocks the duplicate retry. -/
-def stepCheckedRetryComparison (srv : ServerMode) : Ledger × List WireLogEntry :=
-  let (l1, e1) := stepVerifiedLedger srv {} .reserve25
-  let (l2, e2) := stepVerifiedLedger srv l1 .dropSocket
-  let (l3, e3) := stepVerifiedLedger srv l2 .reserve25
-  (l3, [e3, e2, e1])
+/-- Checked retry sequence (`reserve25 -> dropSocket -> reserve25`): locks `pay_1` and blocks duplicate charge. -/
+def stepCheckedRetryComparison (srv : ServerMode) : Ledger :=
+  let (l1, _) := stepVerifiedLedger srv {} .reserve25
+  let (l2, _) := stepVerifiedLedger srv l1 .dropSocket
+  let (l3, _) := stepVerifiedLedger srv l2 .reserve25
+  l3
+
+/-! ## 2. Homepage Flaky-Wi-Fi Checkout Simulator -/
+
+inductive CheckoutMode where
+  | agentDraft
+  | lakeportFixed
+  deriving DecidableEq, Repr, Inhabited
+
+namespace CheckoutMode
+
+def slug : CheckoutMode → String
+  | .agentDraft => "draft"
+  | .lakeportFixed => "checked"
+
+def parse : String → CheckoutMode
+  | "checked" => .lakeportFixed
+  | _ => .agentDraft
+
+end CheckoutMode
+
+inductive NetworkRun where
+  | idle
+  | normalWifi
+  | flakyWifi
+  deriving DecidableEq, Repr, Inhabited
+
+namespace NetworkRun
+
+def slug : NetworkRun → String
+  | .idle => "idle"
+  | .normalWifi => "normal"
+  | .flakyWifi => "flaky"
+
+def parse : String → NetworkRun
+  | "normal" => .normalWifi
+  | "flaky" => .flakyWifi
+  | _ => .idle
+
+end NetworkRun
+
+structure CheckoutOutcome where
+  walletCents : Nat
+  chargedCents : Nat
+  overcharged : Bool
+  headline : String
+  step1 : String
+  step2 : String
+  step3 : String
+  deriving DecidableEq, Repr
+
+/-- Evaluates the $25.00 checkout in compiled Lean Wasm using `stepBuggyAgentRetry` vs `stepVerifiedLedger`. -/
+def runCheckout (mode : CheckoutMode) (net : NetworkRun) : CheckoutOutcome :=
+  let l0 : Ledger := {}
+  match net with
+  | .idle =>
+    { walletCents := l0.totalCents
+      chargedCents := 0
+      overcharged := false
+      headline := "Ready: customer has $100.00 to buy a $25.00 item"
+      step1 := "Click \"Pay $25 on normal Wi-Fi\" to run what a unit test checks."
+      step2 := "Click \"Pay $25 on flaky Wi-Fi\" to drop the connection mid-payment."
+      step3 := "" }
+  | .normalWifi =>
+    let (l1, _) := stepVerifiedLedger .stagedDual l0 .reserve25
+    let (l2, _) := stepVerifiedLedger .stagedDual l1 .settleMilestone
+    { walletCents := l2.available
+      chargedCents := l2.totalCents - l2.available
+      overcharged := l2.totalCents != l0.totalCents
+      headline :=
+        match mode with
+        | .agentDraft => "Unit test passed: charged $25.00 once ($75.00 left)"
+        | .lakeportFixed => "Charged $25.00 once ($75.00 left in wallet)"
+      step1 := "1. App sent $25.00 payment request to server."
+      step2 := "2. Connection stayed up and server confirmed right away."
+      step3 :=
+        match mode with
+        | .agentDraft => "3. Normal unit tests stop here, so the retry bug stays hidden."
+        | .lakeportFixed => "3. Customer paid $25.00 once and received their receipt." }
+  | .flakyWifi =>
+    match mode with
+    | .agentDraft =>
+      let broken := stepBuggyAgentRetry l0
+      { walletCents := broken.available
+        chargedCents := l0.totalCents - broken.available
+        overcharged := broken.totalCents != l0.totalCents
+        headline := "Double-charged: $50.00 taken for a $25.00 order"
+        step1 := "1. App sent $25.00 payment (pay_1), then Wi-Fi dropped before the reply."
+        step2 := "2. Timeout handler cleared the \"sending\" flag to retry."
+        step3 := "3. Retry sent a brand-new $25.00 payment (pay_2). Customer was billed twice." }
+    | .lakeportFixed =>
+      let checked := stepCheckedRetryComparison .stagedDual
+      { walletCents := checked.available
+        chargedCents := checked.totalCents - checked.available
+        overcharged := checked.totalCents != l0.totalCents
+        headline := "Charged $25.00 once even after Wi-Fi dropped"
+        step1 := "1. App sent $25.00 payment (pay_1), then Wi-Fi dropped before the reply."
+        step2 := "2. App kept pay_1 locked as awaiting confirmation instead of clearing it."
+        step3 := "3. Reconnect checked pay_1 with the server instead of billing a second time." }
 
 structure WorkbenchState where
-  patch : AgentPatch := .buggyRetry
-  server : ServerMode := .stagedDual
-  ledger : Ledger := {}
-  buggyPreview : Option Ledger := none
-  checkedCompared : Bool := false
-  proofDrawerOpen : Bool := false
-  contractExplorerOpen : Bool := false
-  logs : List WireLogEntry := [
-    { seq := 0, direction := "BOOT",
-      summary := "Negotiated lpw2 baseline; instant_release capability currently OFF",
-      frame := "CAPS\t1\tlpw1,lpw2\taudit_receipt" }
-  ]
+  mode : CheckoutMode := .agentDraft
+  netRun : NetworkRun := .idle
+  ruleOpen : Bool := false
   deriving DecidableEq, Repr, Inhabited
 
 def formatUsd (cents : Nat) : String :=
@@ -249,43 +297,7 @@ def formatUsd (cents : Nat) : String :=
   let pad := if rem < 10 then "0" ++ Nat.repr rem else Nat.repr rem
   "$" ++ Nat.repr dollars ++ "." ++ pad
 
-def pushLog (w : WorkbenchState) (entry : WireLogEntry) : List WireLogEntry :=
-  (entry :: w.logs).take 5
-
-def applyWorkbenchAction (w : WorkbenchState) (act : LedgerAction) : WorkbenchState :=
-  let (l', logEntry) := stepVerifiedLedger w.server w.ledger act
-  { w with
-    patch := .verified
-    ledger := l'
-    buggyPreview := none
-    checkedCompared := if act == .reset then false else w.checkedCompared
-    logs := if act == .reset then [logEntry] else pushLog w logEntry }
-
-def triggerCounterexample (w : WorkbenchState) : WorkbenchState :=
-  let broken := stepBuggyAgentRetry {}
-  let entry : WireLogEntry := {
-    seq := w.ledger.nextCid + 1
-    direction := "COUNTEREX"
-    summary := "Counterexample executed: $50.00 available + $25.00 held + $0.00 released = $75.00"
-    frame := "totalCents = 7500 != 10000"
-    blocked := true
-  }
-  { w with
-    patch := .buggyRetry
-    buggyPreview := some broken
-    checkedCompared := false
-    logs := pushLog w entry }
-
-def triggerCheckedComparison (w : WorkbenchState) : WorkbenchState :=
-  let (l3, entries) := stepCheckedRetryComparison w.server
-  { w with
-    patch := .verified
-    ledger := l3
-    buggyPreview := none
-    checkedCompared := true
-    logs := (entries ++ w.logs).take 5 }
-
-/-! ## 2. Embedded `<ContractSimulator />` State -/
+/-! ## 3. Embedded `<ContractSimulator />` State (`04-versioned-contracts.mdx`) -/
 
 inductive SimCommand where
   | reserve
@@ -343,7 +355,7 @@ def simEncodedFrame (s : ContractSimState) : String :=
 def simPermitted (s : ContractSimState) : Bool :=
   permitsEncodedFrame (simParsedAd s) (simEncodedFrame s)
 
-/-! ## 3. Embedded `<RolloutTimeline />` 4-Stage Track -/
+/-! ## 4. `<RolloutTimeline />` (Backend-Agnostic Client Contract Pattern) -/
 
 inductive RolloutStage where
   | stage1FrontendFirst
@@ -370,45 +382,45 @@ def ofIndex : Nat → RolloutStage
   | 3 => .stage3EnableCap
   | _ => .stage4WithdrawRollback
 
-def stepNumber : RolloutStage → String
-  | .stage1FrontendFirst => "01"
-  | .stage2DualServer => "02"
-  | .stage3EnableCap => "03"
-  | .stage4WithdrawRollback => "04"
+def stageTag : RolloutStage → String
+  | .stage1FrontendFirst => "Step 1"
+  | .stage2DualServer => "Step 2"
+  | .stage3EnableCap => "Step 3"
+  | .stage4WithdrawRollback => "Step 4"
 
 def shortTitle : RolloutStage → String
-  | .stage1FrontendFirst => "Ship frontend"
-  | .stage2DualServer => "Dual server"
-  | .stage3EnableCap => "Enable capability"
-  | .stage4WithdrawRollback => "Withdraw flag"
+  | .stage1FrontendFirst => "Ship client"
+  | .stage2DualServer => "Deploy backend"
+  | .stage3EnableCap => "Enable feature"
+  | .stage4WithdrawRollback => "Flip flag off"
 
 def headline : RolloutStage → String
-  | .stage1FrontendFirst => "Ship the new client first while the capability gate stays closed."
-  | .stage2DualServer => "Update backend pods to serve both v1 and v2 while the capability stays off."
-  | .stage3EnableCap => "Advertise instant_release in GET /api/capabilities to open the gate."
-  | .stage4WithdrawRollback => "Withdraw the capability flag to hide the control without redeploying binaries."
+  | .stage1FrontendFirst => "Deploy the updated Lakeport app first while your backend still serves v1."
+  | .stage2DualServer => "Roll out your Go, Node, Python, or Rust backend with v2 support while keeping the new flag off."
+  | .stage3EnableCap => "Turn on the backend capability flag once the server deployment looks healthy."
+  | .stage4WithdrawRollback => "Flip the backend flag off to hide the new feature without redeploying the app."
 
 def serverAdSummary : RolloutStage → String
-  | .stage1FrontendFirst => "versions: [lpw1] · capabilities: []"
-  | .stage2DualServer => "versions: [lpw1, lpw2] · capabilities: [audit_receipt]"
-  | .stage3EnableCap => "versions: [lpw1, lpw2] · capabilities: [instant_release, audit_receipt]"
-  | .stage4WithdrawRollback => "versions: [lpw1, lpw2] · capabilities: [audit_receipt]"
+  | .stage1FrontendFirst => "Serving v1 responses only"
+  | .stage2DualServer => "Serving v1 and v2 responses (instant payout flag off)"
+  | .stage3EnableCap => "Serving v1 and v2 responses (instant payout flag on)"
+  | .stage4WithdrawRollback => "Serving v1 and v2 responses (instant payout flag off)"
 
 def cachedOldClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Speaks lpw1 normally; never sees v2 messages."
-  | .stage2DualServer => "Continues speaking lpw1 against dual-version pods."
-  | .stage3EnableCap => "Continues speaking lpw1 until the tab refreshes."
-  | .stage4WithdrawRollback => "Unaffected; lpw1 baseline stays online."
+  | .stage1FrontendFirst => "Continues using v1 as usual."
+  | .stage2DualServer => "Continues using v1 without errors."
+  | .stage3EnableCap => "Continues using v1 until the user refreshes."
+  | .stage4WithdrawRollback => "Continues using v1 unaffected."
 
 def newClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Understands v2; keeps Instant Release hidden."
-  | .stage2DualServer => "Frames baseline traffic in lpw2; Instant Release stays hidden."
-  | .stage3EnableCap => "Reveals Instant Release control; Gate.permits admits commands."
-  | .stage4WithdrawRollback => "Hides control on capability refresh; rejects unnegotiated v2 writes."
+  | .stage1FrontendFirst => "Understands both v1 and v2; keeps Instant Payout hidden."
+  | .stage2DualServer => "Reads v2 responses; keeps Instant Payout hidden."
+  | .stage3EnableCap => "Shows Instant Payout and sends v2 requests."
+  | .stage4WithdrawRollback => "Hides Instant Payout as soon as capabilities refresh."
 
 def admissionSummary : RolloutStage → String
-  | .stage3EnableCap => "instantRelease admitted (Gate.permits = true)"
-  | _ => "instantRelease blocked before socket write (Gate.permits = false)"
+  | .stage3EnableCap => "Allowed because your server advertises support"
+  | _ => "Blocked in the client before any v2 request is sent"
 
 def gateOpen : RolloutStage → Bool
   | .stage3EnableCap => true
@@ -416,7 +428,7 @@ def gateOpen : RolloutStage → Bool
 
 end RolloutStage
 
-/-! ## 4. Embedded `<DeadCodeExplorer />` Illustrative Reachability Model -/
+/-! ## 5. `<DeadCodeExplorer />` Reachability Model -/
 
 inductive UsageProfile where
   | fullDocsSite
@@ -437,9 +449,9 @@ def parse : String → UsageProfile
   | _ => .fullDocsSite
 
 def label : UsageProfile → String
-  | .fullDocsSite => "Full MDX + v1/v2 contract"
-  | .slugOnlyUtility => "LakeportMdx.slugify only"
-  | .v1RetiredClean => "After retiring Version.v1"
+  | .fullDocsSite => "Full Markdown + v1/v2 contract"
+  | .slugOnlyUtility => "Heading slug helper only"
+  | .v1RetiredClean => "After removing retired v1"
 
 end UsageProfile
 

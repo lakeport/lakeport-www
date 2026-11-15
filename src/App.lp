@@ -9,7 +9,7 @@ import Marketing
 import DocsView
 set_option synthInstance.maxSize 4096
 /-!
-# `App` — Lakeport Website & Technical Manual Root (`App.app`)
+# `App` : Lakeport Website & Technical Manual Root (`App.app`)
 
 Mounts `RouterShell`, solid editorial navigation chrome, brand theme tokens,
 and all 17 pre-rendered SSG routes (`0 sorryAx`).
@@ -102,10 +102,10 @@ def footerView : V :=
             <button class="hit-overlay" onClick={Ev.nav "/"}>Lakeport home</button>
             {logoLockup "footer"}
           </div>
-          <span class="footer-tagline">Apps your agents can prove.</span>
+          <span class="footer-tagline">Build apps with coding agents, prove the rules that matter.</span>
         </div>
 
-        <nav class="footer-nav">
+        <div class="footer-nav">
           {footerLink "Docs" "/docs/introduction"}
           {footerLink "First app" "/docs/getting-started"}
           {footerLink "All chapters" "/docs"}
@@ -113,12 +113,12 @@ def footerView : V :=
           {footerLink "Packages" "/ecosystem"}
           {footerLink "Examples" "/showcase"}
           {footerLink "CLI & MCP" "/docs/cli-and-mcp"}
-        </nav>
+        </div>
       </div>
 
       <div class="footer-colophon">
-        <span>Built in Lean 4 with Lakeport · 17 static HTML routes · 0 sorryAx</span>
-        <span class="footer-qed">∎</span>
+        <span>Built with Lakeport: 17 static HTML pages, 459 KB gzipped WebAssembly</span>
+        <span class="footer-qed">Apache-2.0</span>
       </div>
     </div>
   </footer>

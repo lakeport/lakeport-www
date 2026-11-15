@@ -2,7 +2,7 @@ import LakeportMdx.Ast
 import LakeportMdx.Parser
 import Docs.CatalogGen
 /-!
-# `Site.Docs.Registry` — Section Grouping, Prev/Next Links & Instant Search
+# `Site.Docs.Registry` : Section Grouping, Prev/Next Links & Instant Search
 
 Pure helpers over `DocSlug` and `LakeportMdx.parseMdx` for sidebar navigation,
 instant search filtering, and sequential prev/next chapter links.

@@ -1,19 +1,11 @@
 import Demo.Workbench
 /-!
-# `Site.Demo.Laws` — Kernel-Checked Workbench & Escrow Theorems (`[proof-only, 0 B C]`)
+# `Site.Demo.Laws` : Kernel-Checked Checkout & Escrow Theorems (`[proof-only, 0 B C]`)
 
-Strictly `theorem`-only module proving:
-1. `stepVerifiedLedger` conserves `totalCents` across every `ServerMode` and `LedgerAction`
-   (except explicit `.reset` which restores `10000`).
-2. `stepVerifiedLedger` never emits an unnegotiated `instantRelease` when the server is in
-   `.legacyV1` or `.stagedDual`.
-3. `stepVerifiedLedger` transitions in-flight transfers to `.uncertain` on socket drop.
-4. Productive witness: `reserve25` followed by `settleMilestone` moves `2500` cents from
-   `available` to `released`.
-5. Refutation theorem (`buggy_retry_loses_conservation`): `stepBuggyAgentRetry` violates
-   conservation (`7500 ≠ 10000`), backing the interactive counterexample in the UI.
-6. Checked retry witness (`checked_retry_comparison_conserves`): `stepCheckedRetryComparison`
-   locks `cid-1` as `.uncertain`, blocks the duplicate reserve, and preserves `10000` cents.
+Strictly `theorem`-only module verifying:
+1. `lakeportFixed_never_overcharges`: across every `NetworkRun`, the checked checkout charges at most $25.00 and conserves the $100.00 customer balance.
+2. `agentDraft_normalWifi_passes_tests` & `agentDraft_flakyWifi_double_charges`: on normal Wi-Fi the naive draft charges $25.00, while on flaky Wi-Fi it charges $50.00.
+3. Underlying `stepVerifiedLedger` conservation, capability gating, and flight-lock laws.
 -/
 namespace Site.Demo.Laws
 open Site.Contract Site.Demo
@@ -100,9 +92,25 @@ theorem buggy_retry_loses_conservation :
   decide
 
 theorem checked_retry_comparison_conserves :
-    let (l3, _) := stepCheckedRetryComparison .stagedDual
+    let l3 := stepCheckedRetryComparison .stagedDual
     l3.available = 7500 ∧ l3.held = 2500 ∧ l3.released = 0 ∧
-    l3.delivery = .uncertain "cid-1" 2500 ∧ l3.totalCents = 10000 := by
+    l3.delivery = .uncertain "pay_1" 2500 ∧ l3.totalCents = 10000 := by
+  decide
+
+theorem lakeportFixed_never_overcharges (net : NetworkRun) :
+    let out := runCheckout .lakeportFixed net
+    out.overcharged = false ∧ out.chargedCents ≤ 2500 ∧ out.walletCents + out.chargedCents = 10000 := by
+  cases net <;> decide
+
+theorem agentDraft_normalWifi_passes_tests :
+    (runCheckout .agentDraft .normalWifi).chargedCents = 2500 ∧
+    (runCheckout .agentDraft .normalWifi).overcharged = false := by
+  decide
+
+theorem agentDraft_flakyWifi_double_charges :
+    (runCheckout .agentDraft .flakyWifi).chargedCents = 5000 ∧
+    (runCheckout .agentDraft .flakyWifi).walletCents = 5000 ∧
+    (runCheckout .agentDraft .flakyWifi).overcharged = true := by
   decide
 
 theorem dce_proof_bytes_always_zero (d : DceState) :

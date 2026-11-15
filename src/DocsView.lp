@@ -6,7 +6,7 @@ import Events
 import Widgets
 set_option synthInstance.maxSize 4096
 /-!
-# `Site.DocsView` — 3-Column Technical Manual & Documentation Hub
+# `Site.DocsView`: 3-Column Technical Manual & Documentation Hub
 
 Renders `/docs` (ruled chapter index) and `/docs/<slug>` (left search/section nav,
 center MDX prose with embedded live Lakeport widgets, right sticky TOC, and prev/next pager).
@@ -26,7 +26,7 @@ def docsIndexPage : V :=
         <div class="packages-intro">
           <h1 class="display-xl">Documentation</h1>
           <p class="lead-editorial">
-            Twelve practical chapters on building WebAssembly and native software in Lean 4—from a ten-minute starter app to versioned edge contracts and zero-cost domain proofs.
+            Twelve practical guides to building web and native apps with Lakeport, starting with a ten-minute starter project and growing into coding-agent workflows, client API contracts, and checked business rules. No prior Lean background required.
           </p>
           <div class="cta-row">
             {primaryBtn "Start with Introduction" (Ev.nav "/docs/introduction")}
@@ -75,7 +75,7 @@ private def sidebarSection (active : DocSlug) (query : String) (sec : String) : 
     </div>
 
 def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
-  let doc := (s.docCache.refresh slug).get
+  let doc := (s.docCache.refresh (some slug)).get
   let (prevOpt, nextOpt) := neighbors slug
   <div class="docs-band">
   <div class="docs-layout">
@@ -104,7 +104,7 @@ def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
 
       {renderBlocks (mdxHooks s) doc.blocks}
 
-      <nav class="docs-pager">
+      <div class="docs-pager">
         {(prevOpt.map fun prev =>
           (<div class="pager-card">
             <button class="hit-overlay" onClick={Ev.nav ("/docs/" ++ prev.slug)}>{"Previous: " ++ prev.title}</button>
@@ -117,7 +117,7 @@ def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
             <span class="pager-dir">Next chapter</span>
             <span class="pager-title">{nxt.title}</span>
           </div> : V))}
-      </nav>
+      </div>
     </main>
 
     <aside class="docs-toc">

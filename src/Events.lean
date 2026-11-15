@@ -1,7 +1,7 @@
 import LakeportEffects
 import State
 /-!
-# `Site.Events` — Typed UI Event Constructors & Reducer Dispatch
+# `Site.Events`: Typed UI Event Constructors & Reducer Dispatch
 
 Centralizes `(Nat × String)` UI event tags and field edits so `Brand.lp`,
 `Widgets.lp`, `Marketing.lp`, `DocsView.lp`, and `App.lp` share one verified dispatch table.
@@ -18,13 +18,10 @@ def toggleTheme : UiEvent := (2, "")
 def toggleMobileNav : UiEvent := (3, "")
 def copy (key code : String) : UiEvent := (4, WirePack.packPair key code)
 
-def wbPatch (p : AgentPatch) : UiEvent := (10, p.slug)
-def wbServer (m : ServerMode) : UiEvent := (11, m.slug)
-def wbAction (act : String) : UiEvent := (12, act)
-def wbCounterexample : UiEvent := (13, "")
-def wbProofDrawer : UiEvent := (14, "")
-def wbCompareChecked : UiEvent := (15, "")
-def wbContractExplorer : UiEvent := (16, "")
+def wbMode (m : CheckoutMode) : UiEvent := (10, m.slug)
+def wbRun (net : NetworkRun) : UiEvent := (11, net.slug)
+def wbSeeCheckedFix : UiEvent := (12, "")
+def wbToggleRule : UiEvent := (13, "")
 
 def simServer (m : ServerMode) : UiEvent := (20, m.slug)
 def simCorrupt : UiEvent := (21, "")
@@ -40,15 +37,6 @@ def clearDocsSearch : UiEvent := (51, "")
 
 end Ev
 
-private def decodeLedgerAction (raw : String) : LedgerAction :=
-  if raw == "reserve" then .reserve25
-  else if raw == "settle" then .settleMilestone
-  else if raw == "instant" then .instantRelease25
-  else if raw == "drop" then .dropSocket
-  else if raw == "reconcile" then .reconcileReconnect
-  else if raw == "inject" then .injectUnnegotiated
-  else .reset
-
 def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakeport.Signals.Term) :=
   match ev with
   | (1, url) =>
@@ -63,32 +51,17 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
       let (s', reqs) := copySnippet s k code
       some (s', reqs.map EffectReq.toTerm)
     | none => some (s, [])
-  | (10, pSlug) =>
-    let p := AgentPatch.parse pSlug
-    let preview := if p == .buggyRetry then s.workbench.buggyPreview else none
-    some (bump { s with workbench := { s.workbench with patch := p, buggyPreview := preview } }, [])
-  | (11, srvSlug) =>
-    let srv := ServerMode.parse srvSlug
-    let adEntry : WireLogEntry := {
-      seq := s.workbench.ledger.nextCid
-      direction := "CAPS"
-      summary := "Switched backend advertisement → " ++ srv.label
-      frame := "\t".intercalate (Site.Contract.encodeAdvertisementFields srv.advertisement)
-    }
-    let wb' := { s.workbench with server := srv, logs := pushLog s.workbench adEntry }
-    some (bump { s with workbench := wb' }, [])
-  | (12, actSlug) =>
-    let wb' := applyWorkbenchAction s.workbench (decodeLedgerAction actSlug)
+  | (10, modeSlug) =>
+    let m := CheckoutMode.parse modeSlug
+    some (bump { s with workbench := { s.workbench with mode := m } }, [])
+  | (11, netSlug) =>
+    let net := NetworkRun.parse netSlug
+    some (bump { s with workbench := { s.workbench with netRun := net } }, [])
+  | (12, _) =>
+    let wb' := { s.workbench with mode := .lakeportFixed, netRun := .flakyWifi }
     some (bump { s with workbench := wb' }, [])
   | (13, _) =>
-    some (bump { s with workbench := triggerCounterexample s.workbench }, [])
-  | (14, _) =>
-    let wb' := { s.workbench with proofDrawerOpen := !s.workbench.proofDrawerOpen }
-    some (bump { s with workbench := wb' }, [])
-  | (15, _) =>
-    some (bump { s with workbench := triggerCheckedComparison s.workbench }, [])
-  | (16, _) =>
-    let wb' := { s.workbench with contractExplorerOpen := !s.workbench.contractExplorerOpen }
+    let wb' := { s.workbench with ruleOpen := !s.workbench.ruleOpen }
     some (bump { s with workbench := wb' }, [])
   | (20, srvSlug) =>
     let sim' := { s.contractSim with server := ServerMode.parse srvSlug, corruptAd := false }

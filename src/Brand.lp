@@ -1,7 +1,7 @@
 import Events
 set_option synthInstance.maxSize 4096
 /-!
-# `Site.Brand` — Isolated Lakeport Brand Lockup, Waterline Mark & Evidence Vocabulary
+# `Site.Brand` : Isolated Lakeport Brand Lockup, Waterline Mark & Evidence Vocabulary
 
 Single source of truth for Lakeport vector marks and the four-state verification
 evidence vocabulary (`Proved`, `Trusted`, `Unknown`, `Failed`).
@@ -71,7 +71,7 @@ def glyph : EvState → String
   | .proved => "●"
   | .trusted => "◐"
   | .unknown => "○"
-  | .failed => "✕"
+  | .failed => "×"
 
 def word : EvState → String
   | .proved => "Proved"

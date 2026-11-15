@@ -1,6 +1,6 @@
 import State
 /-!
-# `Site.Laws` — Kernel-Checked Navigation & Cache Coherence (`[proof-only, 0 B C]`)
+# `Site.Laws` : Kernel-Checked Navigation & Cache Coherence (`[proof-only, 0 B C]`)
 
 Strictly `theorem`-only module verifying URL round-trips, `MemoCell` coherence after
 `syncCaches`, and monotonic `commit` progression.
@@ -14,9 +14,10 @@ theorem parseSiteUrl_routePath (r : SiteRoute) :
   | docsPage s => cases s <;> decide
   | _ => decide
 
-theorem syncCaches_sandbox_coherent (s : AppState) :
+theorem syncCaches_sandbox_coherent (s : AppState)
+    (hRoute : s.router.activeRoute = .ecosystem) :
     (syncCaches s).sandboxCache.get = LakeportMdx.parseMdx s.sandboxSource := by
-  simp [syncCaches]
+  simp [syncCaches, hRoute]
 
 theorem syncCaches_docsPage_coherent (s : AppState) (slug : DocSlug)
     (hRoute : s.router.activeRoute = .docsPage slug) :

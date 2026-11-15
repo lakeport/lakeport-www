@@ -18,8 +18,8 @@ hostEpoch = [42, 1, 1]
 nodeCapacity = 65536
 
 [lakeport.web]
-title = "Lakeport: Apps your agents can prove"
-description = "WebAssembly and native apps in Lean 4 where edge contracts, offline retries, and domain invariants are checked by the Lean kernel."
+title = "Lakeport: Build apps with agents, prove the rules that matter"
+description = "Write JSX-style .lp views and CSS while your coding agent handles the state logic and proofs. Compiles to WebAssembly and native apps without requiring you to know Lean."
 mode = "ssg"
 themeColor = "#00181B"
 caps = { publicCap = 524288, heldCap = 262144 }
