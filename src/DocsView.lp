@@ -8,7 +8,7 @@ set_option synthInstance.maxSize 4096
 /-!
 # `Site.DocsView` — 3-Column Technical Manual & Documentation Hub
 
-Renders `/docs` (section overview) and `/docs/<slug>` (left search/section nav,
+Renders `/docs` (ruled chapter index) and `/docs/<slug>` (left search/section nav,
 center MDX prose with embedded live Lakeport widgets, right sticky TOC, and prev/next pager).
 -/
 namespace Site.DocsView
@@ -20,42 +20,45 @@ abbrev V := StyledView UiEvent Nat
   ⟨fun xs => xs.zipIdx.map fun (v, i) => (some i, v)⟩
 
 def docsIndexPage : V :=
-  <div>
-    <section class="hero-section">
+  <main>
+    <section class="hero-air">
       <div class="container">
-        <div class="hero-grid">
-          <div class="eyebrow"><span>Lakeport manual</span></div>
-          <h1 class="hero-title">Documentation</h1>
-          <p class="hero-lead">
-            Practical guides written in plain English. Start by building a small app in ten minutes, then learn how we version edge contracts and roll out frontends without coordination headaches.
+        <div class="packages-intro">
+          <h1 class="display-xl">Documentation</h1>
+          <p class="lead-editorial">
+            Twelve practical chapters on building WebAssembly and native software in Lean 4—from a ten-minute starter app to versioned edge contracts and zero-cost domain proofs.
           </p>
           <div class="cta-row">
-            {primaryBtn "Read Introduction" (Ev.nav "/docs/introduction")}
-            {secondaryBtn "Jump to Your first app" (Ev.nav "/docs/getting-started")}
+            {primaryBtn "Start with Introduction" (Ev.nav "/docs/introduction")}
+            {inlineLinkBtn "Jump to Your first app →" (Ev.nav "/docs/getting-started")}
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section-block">
+    <div class="waterline-rule" />
+
+    <section class="editorial-section">
       <div class="container">
         {sectionsOrder.map fun sec =>
-          <div class="section-head">
-            <span class="section-kicker">{sec}</span>
-            <div class="cards-3">
+          <div class="docs-index-section">
+            <h2 class="docs-index-heading">{sec}</h2>
+            <div class="docs-index-list">
               {(docsInSection sec).map fun d =>
-                <div class="feature-card" data-clickable={true}>
+                <div class="docs-index-row">
                   <button class="hit-overlay" onClick={Ev.nav ("/docs/" ++ d.slug)}>{d.title}</button>
-                  <span class="docs-meta-row">{toString d.readingMinutes ++ " min read"}</span>
-                  <h3 class="card-title">{d.title}</h3>
-                  <p class="card-body">{d.summary}</p>
-                  <span class="card-link-hint">{"Read chapter ->"}</span>
+                  <div class="docs-index-title-col">
+                    <span class="docs-index-title">{d.title}</span>
+                    <span class="docs-index-read">{toString d.readingMinutes ++ " min read"}</span>
+                  </div>
+                  <p class="docs-index-summary">{d.summary}</p>
+                  <span class="docs-index-arrow">{"→"}</span>
                 </div>}
             </div>
           </div>}
       </div>
     </section>
-  </div>
+  </main>
 
 private def sidebarSection (active : DocSlug) (query : String) (sec : String) : V :=
   let items := (docsInSection sec).filter (matchesDocQuery query)
@@ -74,6 +77,7 @@ private def sidebarSection (active : DocSlug) (query : String) (sec : String) : 
 def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
   let doc := (s.docCache.refresh slug).get
   let (prevOpt, nextOpt) := neighbors slug
+  <div class="docs-band">
   <div class="docs-layout">
     <aside class="docs-sidebar">
       <div class="search-box">
@@ -123,6 +127,7 @@ def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
           <span>{item.title}</span>
         </div>}
     </aside>
+  </div>
   </div>
 
 end Site.DocsView

@@ -8,7 +8,7 @@
   "scripts": {
     "sync:mdx": "python3 tools/sync_mdx.py",
     "check": "node tools/lakeport-run.mjs check .",
-    "build": "python3 tools/sync_mdx.py && node tools/lakeport-run.mjs build web . --release",
+    "build": "python3 tools/sync_mdx.py && node tools/lakeport-run.mjs build web . --release && python3 tools/postbuild_head.py",
     "test": "python3 tests/check-negative-v3.py && node tests/smoke-wasm.mjs",
     "dev:worker": "wrangler dev",
     "deploy:dry-run": "npm run build && wrangler deploy --dry-run",

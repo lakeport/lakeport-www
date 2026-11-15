@@ -36,26 +36,27 @@ const clickByLabel = label => {
 // 1. Boot homepage
 const bootRes = session.start();
 assert.equal(bootRes.class, 'installed');
-assert.ok(allText().includes('$100.00 / $100.00'));
+assert.ok(allText().includes('$100.00'));
+assert.ok(allText().includes('of $100.00 conserved'));
 
-// 2. Reserve $25 -> Drop socket -> Inject unnegotiated v2 frame
-clickByLabel('Reserve $25.00');
+// 2. Run faulty agent retry counterexample in live Wasm
+clickByLabel('Run faulty retry');
 assert.ok(allText().includes('$75.00'));
-assert.ok(allText().includes('$25.00'));
+assert.ok(allText().includes('of $100.00 · $25.00 missing'));
+assert.ok(allText().includes('LedgerConserved ($100.00 → $75.00 after socket retry)'));
 
-clickByLabel('Drop socket');
-assert.ok(allText().includes('Uncertain: cid-1 (locked until sync)'));
+// 3. Compare checked reducer (locks cid-1 as .uncertain and blocks duplicate retry)
+clickByLabel('Compare checked reducer');
+assert.ok(allText().includes('$100.00'));
+assert.ok(allText().includes('delivery: .uncertain (cid-1 locked)'));
+assert.ok(allText().includes('Duplicate retry rejected while cid-1 awaits reconciliation'));
 
+// 4. Open wire & capability gate disclosure and inject unnegotiated v2 frame
+clickByLabel('+ Explore wire & capability gates');
 clickByLabel('Inject unnegotiated v2 frame');
 assert.ok(allText().includes('permitsEncodedFrame rejected unnegotiated v2 frame before socket write'));
 
-// 3. Patch B counterexample in live Wasm
-clickByLabel('Patch B: Agent naive retry fix');
-clickByLabel('Run counterexample in live ledger');
-assert.ok(allText().includes('INVARIANT VIOLATED (Patch B)'));
-assert.ok(allText().includes('$75.00 / $100.00'));
-
-// 4. Live MDX Sandbox on /ecosystem
+// 5. Live MDX Sandbox on /ecosystem
 session.navigate('/ecosystem');
 const mdxInput = [...session.mirror.nodes.values()].find(
   n => n.type === 'input' && n.label === 'MDX sandbox source'
@@ -68,10 +69,10 @@ session.input(
 assert.ok(allText().includes('Custom interactive heading'));
 assert.ok(allText().includes('pure Lean Wasm'));
 
-// 5. Embedded <ContractSimulator /> inside /docs/versioned-contracts
+// 6. Embedded <ContractSimulator /> inside /docs/versioned-contracts
 session.navigate('/docs/versioned-contracts');
 clickByLabel('Corrupt CAPS schema v99');
 assert.ok(allText().includes('none (fail-closed: unknown schema rejected)'));
 
 session.dispose();
-console.log('PASS: Interactive Wasm smoke suite verified Workbench, Gate, Counterexample, Live MDX Sandbox, and Docs Simulator.');
+console.log('PASS: Interactive Wasm smoke suite verified Waterline Workbench, Checked Comparison, Capability Gate, Live MDX, and Docs Simulator.');

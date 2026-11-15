@@ -3,18 +3,20 @@ import LakeportEffects
 import Routes
 import State
 import Events
+import Brand
 import Widgets
 import Marketing
 import DocsView
 set_option synthInstance.maxSize 4096
 /-!
-# `App` — Lakeport Marketing & Documentation Site Root (`App.app`)
+# `App` — Lakeport Website & Technical Manual Root (`App.app`)
 
-Mounts `RouterShell`, global chrome, theme tokens, and routes across all 17
-pre-rendered SSG routes, compiling to WebAssembly with `0 sorryAx`.
+Mounts `RouterShell`, solid editorial navigation chrome, brand theme tokens,
+and all 17 pre-rendered SSG routes (`0 sorryAx`).
 -/
 namespace App
-open Lakeport.Signals LakeportStyle LakeportRouter LakeportEffects Site Site.Widgets Site.Marketing Site.DocsView
+open Lakeport.Signals LakeportStyle LakeportRouter LakeportEffects
+open Site Site.Brand Site.Widgets Site.Marketing Site.DocsView
 
 abbrev V := StyledView UiEvent Nat
 
@@ -32,36 +34,41 @@ private def navLink (active : Bool) (label href : String) : V :=
     <span class="nav-item-label">{label}</span>
   </div>
 
+private def themeIcon (t : ThemePref) : List V :=
+  match t with
+  | .auto => Icon.autoHalf
+  | .light => Icon.sun
+  | .dark => Icon.moon
+
+private def themeShort (t : ThemePref) : String :=
+  match t with
+  | .auto => "Auto"
+  | .light => "Light"
+  | .dark => "Dark"
+
 def headerView (s : AppState) : V :=
   let r := s.router.activeRoute
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand-wrap">
         <button class="hit-overlay" onClick={Ev.nav "/"}>Lakeport home</button>
-        <div class="brand-mark">{svg "16" Icon.shield}</div>
-        <span class="brand-name">Lakeport</span>
-        <span class="brand-tag">Lean 4</span>
+        {logoLockup "header"}
       </div>
 
-      <nav class="nav-links">
-        {navLink (r == .home) "Overview" "/"}
-        {navLink (isDocsActive r) "Docs" "/docs/introduction"}
-        {navLink (r == .whyLean) "Why Lean" "/why-lean"}
-        {navLink (r == .ecosystem) "Reservoir & MDX" "/ecosystem"}
-        {navLink (r == .showcase) "Showcase" "/showcase"}
-      </nav>
-
       <div class="topbar-right">
-        <div class="wasm-badge">
-          <span class="wasm-dot" />
-          <span>wasm32 • 0 sorryAx</span>
+        <nav class="nav-links">
+          {navLink (isDocsActive r) "Docs" "/docs/introduction"}
+          {navLink (r == .whyLean) "Why Lean" "/why-lean"}
+          {navLink (r == .ecosystem) "Packages" "/ecosystem"}
+          {navLink (r == .showcase) "Examples" "/showcase"}
+        </nav>
+
+        <div class="theme-btn">
+          <button class="hit-overlay" onClick={Ev.toggleTheme}>{s.theme.buttonLabel}</button>
+          {svg "14" (themeIcon s.theme)}
+          <span class="theme-btn-text">{themeShort s.theme}</span>
         </div>
-        <div class="icon-btn">
-          <button class="hit-overlay" onClick={Ev.toggleTheme}>
-            {if s.darkTheme then "Switch to light theme" else "Switch to dark theme"}
-          </button>
-          {svg "16" (if s.darkTheme then Icon.sun else Icon.moon)}
-        </div>
+
         <div class="icon-btn mobile-menu-btn">
           <button class="hit-overlay" onClick={Ev.toggleMobileNav}>Toggle navigation menu</button>
           {svg "18" (if s.mobileNavOpen then Icon.close else Icon.menu)}
@@ -72,10 +79,10 @@ def headerView (s : AppState) : V :=
     {if s.mobileNavOpen then
       <div class="mobile-drawer">
         {navLink (r == .home) "Overview" "/"}
-        {navLink (isDocsActive r) "Documentation" "/docs/introduction"}
+        {navLink (isDocsActive r) "Docs" "/docs/introduction"}
         {navLink (r == .whyLean) "Why Lean" "/why-lean"}
-        {navLink (r == .ecosystem) "Reservoir & Live MDX" "/ecosystem"}
-        {navLink (r == .showcase) "Showcase" "/showcase"}
+        {navLink (r == .ecosystem) "Packages" "/ecosystem"}
+        {navLink (r == .showcase) "Examples" "/showcase"}
       </div>
      else <span>{""}</span>}
   </header>
@@ -89,34 +96,29 @@ private def footerLink (label href : String) : V :=
 def footerView : V :=
   <footer class="site-footer">
     <div class="container">
-      <div class="footer-inner">
-        <div class="footer-col">
-          <span class="footer-title">Lakeport</span>
-          <p class="footer-note">
-            Built entirely in Lakeport (Lean 4, .lp TSX, scoped .css, and lakeport-mdx). Pre-rendered across 17 static HTML routes from compiled WebAssembly.
-          </p>
+      <div class="footer-top">
+        <div class="footer-brand-col">
+          <div class="footer-logo-wrap">
+            <button class="hit-overlay" onClick={Ev.nav "/"}>Lakeport home</button>
+            {logoLockup "footer"}
+          </div>
+          <span class="footer-tagline">Apps your agents can prove.</span>
         </div>
-        <div class="footer-col">
-          <span class="footer-title">Getting started</span>
-          {footerLink "Introduction" "/docs/introduction"}
-          {footerLink "Installation" "/docs/installation"}
-          {footerLink "Your first app" "/docs/getting-started"}
-          {footerLink "Browse all chapters" "/docs"}
-        </div>
-        <div class="footer-col">
-          <span class="footer-title">Recommended patterns</span>
-          {footerLink "Versioned union contracts" "/docs/versioned-contracts"}
-          {footerLink "Frontend-first releases" "/docs/frontend-first-releases"}
-          {footerLink "Pure core & Lean proofs" "/docs/pure-core-and-proofs"}
-          {footerLink "Reservoir & bundle size" "/docs/reservoir-and-bundle-size"}
-        </div>
-        <div class="footer-col">
-          <span class="footer-title">Architecture</span>
-          {footerLink "Why Lean 4" "/why-lean"}
-          {footerLink "Live MDX sandbox" "/ecosystem"}
-          {footerLink "Reference apps" "/showcase"}
-          {footerLink "CLI & MCP reference" "/docs/cli-and-mcp"}
-        </div>
+
+        <nav class="footer-nav">
+          {footerLink "Docs" "/docs/introduction"}
+          {footerLink "First app" "/docs/getting-started"}
+          {footerLink "All chapters" "/docs"}
+          {footerLink "Why Lean" "/why-lean"}
+          {footerLink "Packages" "/ecosystem"}
+          {footerLink "Examples" "/showcase"}
+          {footerLink "CLI & MCP" "/docs/cli-and-mcp"}
+        </nav>
+      </div>
+
+      <div class="footer-colophon">
+        <span>Built in Lean 4 with Lakeport · 17 static HTML routes · 0 sorryAx</span>
+        <span class="footer-qed">∎</span>
       </div>
     </div>
   </footer>
@@ -133,7 +135,7 @@ def routeBody (s : AppState) : V :=
 def view (s : AppState) : V :=
   let url := routePath s.router.activeRoute
   <RouterShell url={url} canBack={s.router.canGoBack}>
-    <div class="site-shell" data-theme={if s.darkTheme then "dark" else "light"}>
+    <div class="site-shell" data-theme={s.theme.attr}>
       {headerView s}
       {routeBody s}
       {footerView}
