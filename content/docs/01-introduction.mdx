@@ -1,0 +1,64 @@
+---
+title: "Introduction to Lakeport"
+summary: "What Lakeport is, why it pairs a pure Lean 4 core with native platform primitives, and when to choose it."
+section: "Getting started"
+order: 1
+readingMinutes: 5
+updated: "2026-11-15"
+---
+
+# Introduction to Lakeport
+
+Lakeport is a cross-platform application framework written in Lean 4. You write your state, reducers, routing, wire codecs, views (`.lp` TSX), and stylesheets (`.css`) once. From that single project, Lakeport compiles your application logic to WebAssembly for browsers and to C for native desktop and mobile shells.
+
+If you have built apps with React Native, Elm, or Flutter, the mental model will feel familiar right away. Your interface is a pure function of your state:
+
+```lean title="The Lakeport loop"
+State -> StyledView Event Field
+```
+
+When someone clicks a button or types into a text field, the host shell sends an event into your Lean reducer. The reducer computes the next state and a list of outbound effects (an HTTP call, a clipboard write, a WebSocket frame). Lakeport diffs the view tree and patches only the native or DOM nodes that changed.
+
+## Why Lean 4 for application code?
+
+Most UI frameworks stop at type-checking props and JSON shapes. That catches typos, which helps in day-to-day work, yet it leaves the hardest bugs untouched: conservation of balances, offline retry ordering, stale server capabilities during a rolling deploy, and state transitions that violate an invariant five clicks deep.
+
+Lean 4 is both a fast functional programming language (compiling to C with Perceus reference counting) and an interactive theorem prover. In Lakeport, those two halves live in the same file tree:
+
+- **Your app is ordinary functional code.** You define structures, inductive sums, and `.lp` TSX components much like you would in TypeScript or Elm. You do not need to write a single proof to get a working app on screen.
+- **When a rule matters, you state it as a theorem.** Because your reducer is a pure function with no hidden mutation or ambient `IO`, Lean's kernel can verify properties about the exact `step` function your users execute in production.
+- **Proofs cost zero bytes at runtime.** Every `Prop` and every `theorem` is erased before C and WebAssembly code generation. Modules that contain only theorems (`*Laws.lean`) compile to zero bytes of object code.
+
+<Callout kind="important" title="What proofs cover (and what they do not)">
+A Lean theorem proves a property of your pure model, wire codec, or reducer under explicit hypotheses. It does not prove that a browser engine, operating system kernel, or remote server is bug-free. Good Lakeport code keeps the imperative host shell small and pushes every real decision across the boundary into pure Lean.
+</Callout>
+
+## Why coding agents thrive in Lakeport
+
+If you pair-program with coding agents, you have probably noticed failure modes that unit tests miss. An agent fixes a flaky retry test by clearing a pending flag early, or adds a wildcard `_ => pure ()` branch to silence a compiler warning. All twenty test cases pass, and then a customer gets billed twice on a spotty train Wi-Fi connection.
+
+Lakeport turns business constraints into compile-time walls that an agent cannot talk its way past:
+
+1. **Exhaustive versioned contracts.** Edge handlers match every wire version without wildcard arms. An unimplemented case fails `lakeport check`.
+2. **Kernel-checked invariants.** If `escrow_conserves_cents` says `available + held + released = 10000` across every action, a buggy retry patch will fail to compile until the invariant holds for *all* inputs, not merely the three inputs in a test file.
+3. **Banned escape hatches.** Release checks inspect the compiled Lean environment for `sorryAx` and custom axioms. An agent cannot stub out a hard proof obligation and declare victory.
+
+## Platform maturity at a glance
+
+Lakeport renders through real platform primitives rather than a custom Skia canvas: DOM nodes on the web, GTK4 on Linux, CoreGraphics/AppKit on macOS, UIKit on iOS, Direct2D on Windows, and Android Views on Android.
+
+| Target | Host shell | Current status |
+| --- | --- | --- |
+| Web (SPA + SSG) | Compiled `wasm32` + DOM renderer | Production baseline, static pre-rendering and in-place hydration |
+| Linux desktop | C core + GTK4 | Desktop preview (`lakeport build linux`) |
+| macOS / iOS | C core + AppKit / UIKit | Native shell preview (`lakeport build macos`, `lakeport build ios`) |
+| Windows / Android | C core + Direct2D / Android Views | Native shell preview (`lakeport build windows`, `lakeport build android`) |
+
+## How to read this manual
+
+If you are new to Lakeport, read the next four pages in order:
+
+- [Installation](/docs/installation) sets up the Lean 4 toolchain and `lakeport` CLI.
+- [Your first app](/docs/getting-started) builds a working counter and task list from scratch in ten minutes.
+- [Versioned union contracts](/docs/versioned-contracts) shows how to type the boundary between your client and server so old clients and new servers coexist peacefully.
+- [Frontend-first releases](/docs/frontend-first-releases) explains our deployment rule of thumb: ship the client with its capability gate closed, then roll out the backend.

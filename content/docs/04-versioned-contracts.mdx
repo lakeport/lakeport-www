@@ -1,0 +1,128 @@
+---
+title: "Versioned union contracts at the edge"
+summary: "Put an explicit Version sum and dependent Request/Response family in a shared leaf package so old clients and new servers never drift."
+section: "Recommended patterns"
+order: 4
+readingMinutes: 9
+updated: "2026-11-15"
+---
+
+# Versioned union contracts at the edge
+
+In a single-server web app from 2008, you deployed one tarball and everyone got the new code on their next page load. Modern client apps do not get that luxury. A browser tab can stay open for four days, a Service Worker or CDN edge can serve yesterday's bundle during a deploy, and a mobile app binary can sit un-updated in someone's pocket for six months.
+
+At the boundary of your application, **two versions of your program are almost always running at the same time**.
+
+Most teams treat that boundary informally: optional JSON fields, ad-hoc `"v2"` URL prefixes, and defensive `if (resp.receipt !== undefined)` checks scattered across thirty components. Over a year, nobody knows which fields are actually guaranteed to exist, and coding agents quietly invent half-compatible payloads that crash whichever side was deployed earlier.
+
+Lakeport's first core pattern is straightforward: **model every wire version explicitly as an inductive union inside a shared leaf package, index your requests and responses by that version, and forbid wildcard arms in handlers.**
+
+## 1. Create a shared leaf package
+
+Put your edge contract in `shared/` with zero UI imports (`Init` and `LakeportEffects` only). Both your client app and your backend (or contract conformance harness) depend on `shared/`:
+
+```toml title="shared/lakefile.toml"
+name = "site-contract"
+version = "0.1.0"
+defaultTargets = ["SiteContract"]
+
+[[lean_lib]]
+name = "SiteContract"
+srcDir = "."
+roots = ["SiteContract"]
+
+[lakeport]
+kind = "sdk"
+```
+
+Because `shared/` cannot import `LakeportStyle` or `App.lp`, view concerns never leak into wire types.
+
+## 2. Separate wire versions from capabilities
+
+A protocol version (`v1`, `v2`) names a wire framing and baseline request/response shape. A capability (`instant_release`, `audit_receipt`) names an optional feature that a server may enable or withdraw independently. Keep both in `Versions.lean`:
+
+```lean title="shared/SiteContract/Versions.lean"
+namespace Site.Contract
+
+inductive Version where
+  | v1
+  | v2
+  deriving DecidableEq, Repr, Inhabited
+
+inductive Capability where
+  | instantRelease
+  | auditReceipt
+  | batchSettle
+  deriving DecidableEq, Repr, Inhabited
+
+structure Advertisement where
+  versions : List Version
+  capabilities : List Capability
+  deriving DecidableEq, Repr, Inhabited
+
+end Site.Contract
+```
+
+When the client boots, it fetches `GET /api/capabilities` and parses the server's `Advertisement` **fail-closed**: unknown schema numbers, empty version lists, or unrecognized capability tokens return `none` rather than guessing.
+
+## 3. Index Request and Response by Version
+
+Instead of one giant struct full of `Option` fields that "only exist in v2", give each version its own honest `ClientFrame` and `ServerFrame` inductive type, then tie them together with a dependent type family:
+
+```lean title="shared/SiteContract/Api.lean"
+def Request : Version -> Type
+  | .v1 => Wire.V1.ClientFrame
+  | .v2 => Wire.V2.ClientFrame
+
+def Response : Version -> Type
+  | .v1 => Wire.V1.ServerFrame
+  | .v2 => Wire.V2.ServerFrame
+
+structure Handler (v : Version) where
+  encode : Request v -> String
+  decode : String -> Option (Response v)
+
+def clientHandler : (v : Version) -> Handler v
+  | .v1 => { encode := Wire.V1.encodeReq, decode := Wire.V1.decodeResp }
+  | .v2 => { encode := Wire.V2.encodeReq, decode := Wire.V2.decodeResp }
+```
+
+Look closely at `clientHandler`. Notice two things:
+
+1. Its return type `Handler v` **depends on the value `v`**. It is a type error to wire `Wire.V1.encodeReq` into the `.v2` branch because `Request .v2` is `Wire.V2.ClientFrame`, not `Wire.V1.ClientFrame`.
+2. There is **no `| _ =>` wildcard branch**. If an engineer or coding agent adds `| v3` to `Version` tomorrow, `lakeport check` immediately flags `clientHandler`, `negotiateVersion`, and every server handler with a missing-cases error.
+
+## Interactive contract simulator
+
+Try switching server advertisements and wire commands below. Everything in this widget runs inside the actual `Site.Contract` Lean code compiled into this page's WebAssembly binary:
+
+<ContractSimulator />
+
+## 4. Prove codec round-trips once
+
+Hand-rolled serializers break when a separator character appears inside user text. Use `LakeportEffects.WirePack` (`packFields` / `unpackFields`) for canonical escaping and add a short `*Laws.lean` file proving `decode (encode msg) = some msg` for every version:
+
+```lean title="shared/SiteContract/ContractLaws.lean"
+theorem v2_decodeReq_encodeReq (f : V2.ClientFrame) :
+    V2.decodeReq (V2.encodeReq f) = some f := by
+  cases f <;>
+    simp [V2.encodeReq, V2.decodeReq, WirePack.unpackPair_packPair, parseDecimalNat?_repr]
+```
+
+## 5. Keep the three version axes independent
+
+A mistake we learned the hard way is coupling wire versions to local storage schemas or bundle versions. Keep all three axes separate:
+
+| Axis | Where it lives | What bumps it |
+| --- | --- | --- |
+| Wire protocol (`Version.v1`, `Version.v2`) | `shared/SiteContract/` | Changing request/response framing over HTTP or WebSocket |
+| Local persistence (`schema_v1`, `schema_v2`) | Client outbox / KV store | Changing how offline drafts or cached rows are stored on disk |
+| App release (`1.4.0`, `1.4.1`) | `lakefile.toml` | Shipping UI fixes, CSS updates, or new client logic |
+
+You should be able to ship ten client releases on `Version.v2` without touching the wire contract, and migrate local KV storage without asking the backend team to coordinate a deploy.
+
+## 6. Retiring an old version cleanly
+
+Never delete `Version.v1` on a hunch. First remove `.v1` from the backend's `Advertisement` while leaving the `v1` code compiled in. Watch production telemetry until `v1` request volume hits zero across your longest client update window. Only then delete `| v1` from `Version` and let Lean's compiler guide you to every dead branch you can safely remove.
+
+Next, read [Frontend-first releases](/docs/frontend-first-releases) to see how versioned contracts pair with staged rollouts so deploys never race each other.

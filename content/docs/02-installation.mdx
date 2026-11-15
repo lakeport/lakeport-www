@@ -1,0 +1,78 @@
+---
+title: "Installation and setup"
+summary: "Install elan, verify the pinned Lean 4 toolchain and WebAssembly target, and run lakeport doctor."
+section: "Getting started"
+order: 2
+readingMinutes: 4
+updated: "2026-11-15"
+---
+
+# Installation and setup
+
+Lakeport ships as a single native CLI binary (`lakeport`) alongside three core Lean packages (`lakeport-style`, `lakeport-router`, and `lakeport-effects`). This page walks through installing the prerequisites on Linux and macOS and verifying that WebAssembly builds work on your machine.
+
+## Prerequisites
+
+Before installing Lakeport, make sure you have:
+
+- **Git** and **curl** for fetching toolchains and Reservoir packages.
+- **elan**, the Lean version manager, which automatically downloads the exact Lean 4 compiler pinned in a project's `lean-toolchain` file.
+- **Clang 16+** with the `wasm32` target enabled (standard in Homebrew LLVM on macOS and `clang` + `lld` packages on Ubuntu/Debian) plus `wasm-opt` from Binaryen for release builds.
+- **Node.js 20+** if you use static site generation (`mode = "ssg"`), because `lakeport build web` runs your compiled `.wasm` binary once at build time to pre-render every route into static HTML.
+
+## Step 1: Install elan
+
+If you do not already have `elan` installed, run the standard installer script and add `~/.elan/bin` to your `PATH`:
+
+```sh title="Terminal"
+curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
+export PATH="$HOME/.elan/bin:$PATH"
+```
+
+Verify that `lean` and `lake` respond:
+
+```sh title="Terminal"
+lean --version
+lake --version
+```
+
+## Step 2: Check your environment with lakeport doctor
+
+Clone or extract the Lakeport archive, put `packages/lakeport-cli/bin` on your `PATH`, and run `lakeport doctor`:
+
+```sh title="Terminal"
+lakeport doctor
+```
+
+`lakeport doctor` inspects your local compilers, linkers, Binaryen optimizer, and platform SDKs, then prints a plain checklist showing which targets are ready to build right now. You only need the tools for the targets you actually compile: if Android Studio is not installed, `lakeport build web` and `lakeport build linux` still work normally.
+
+<Callout kind="tip" title="Keep build scratch directories off /dev/shm">
+Lean and Clang write temporary object files during compilation. On Linux machines with small `/dev/shm` tmpfs mounts, set `TMPDIR` to a directory on your main disk (for example `export TMPDIR="$HOME/.cache/lakeport/tmp"`) so parallel builds never run out of memory-backed disk space.
+</Callout>
+
+## Step 3: Editor support
+
+Lakeport uses `.lean` files for pure logic and proofs, `.lp` files for typed TSX views, and `.css` files for stylesheets.
+
+1. Install the official **Lean 4** extension in VS Code, Cursor, or Neovim (`lean4-mode` / `lean.nvim`) for live tactic state views on `.lean` files.
+2. Run `lakeport check` in watch mode or wire `lakeport mcp` into your editor agent so diagnostics on `.lp` and `.css` files map straight back to the exact line and column in your source file.
+
+## Project layout
+
+A newly initialized Lakeport repository is deliberately flat:
+
+```sh title="Directory layout"
+my-app/
+  lakefile.toml       # Project manifest, routes, and target settings
+  assets/
+    icon.svg          # Vector app icon used across web and native shells
+  shared/             # Optional leaf package for shared client/server contracts
+  src/
+    app.css           # Global design tokens and layout classes
+    Routes.lean       # Typed URL codec and LawfulUrlCodec proof
+    State.lean        # Pure state, actions, and step reducer
+    StateLaws.lean    # Proof-only module ([proof-only, 0 B C])
+    App.lp            # TSX views and StyledApp entry point
+```
+
+Next, head to [Your first app](/docs/getting-started) to wire these pieces together and run your first build.

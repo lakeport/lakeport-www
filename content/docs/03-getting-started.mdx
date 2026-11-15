@@ -1,0 +1,207 @@
+---
+title: "Your first app"
+summary: "Build a Release Checklist app from an empty folder, add a state invariant, and pre-render static HTML."
+section: "Getting started"
+order: 3
+readingMinutes: 8
+updated: "2026-11-15"
+---
+
+# Your first app
+
+The fastest way to learn Lakeport is to build a small working app and break it once on purpose. Over the next few minutes we will create a Release Checklist app with three pieces:
+
+1. A pure state machine in `src/Checklist.lean`.
+2. A one-screen TSX interface in `src/App.lp` styled by `src/app.css`.
+3. A short theorem in `src/ChecklistLaws.lean` proving that checking items off never changes the total item count.
+
+## 1. Create the project manifest
+
+Create a new directory called `release-checklist` and write `lakefile.toml` at its root:
+
+```toml title="lakefile.toml"
+name = "release-checklist"
+version = "0.1.0"
+defaultTargets = ["ReleaseChecklist"]
+
+[[lean_lib]]
+name = "ReleaseChecklist"
+srcDir = "src"
+roots = ["App"]
+
+[lakeport]
+bundleId = "dev.example.checklist"
+applicationId = "dev.example.checklist"
+entry = "App"
+app = "App.app"
+css = "src/app.css"
+outDir = "dist"
+nodeCapacity = 16384
+
+[lakeport.web]
+title = "Release Checklist"
+mode = "ssg"
+themeColor = "#0f172a"
+ssgRoutes = ["/"]
+```
+
+Notice `entry = "App"` and `app = "App.app"`. That tells Lakeport to compile `src/App.lp` and mount the `StyledApp` value named `App.app`.
+
+## 2. Model the state and reducer
+
+Create `src/Checklist.lean`. We keep all state transitions here in ordinary Lean so they are easy to read, test, and prove things about without touching any UI code.
+
+```lean title="src/Checklist.lean"
+namespace Checklist
+
+structure Item where
+  id : Nat
+  label : String
+  done : Bool := false
+  deriving DecidableEq, Repr, Inhabited
+
+structure Model where
+  items : List Item := [
+    { id := 1, label := "Ship frontend capability gate", done := true },
+    { id := 2, label := "Deploy dual-version server", done := false },
+    { id := 3, label := "Enable v2 capability flag", done := false }
+  ]
+  commit : Nat := 0
+  deriving DecidableEq, Repr, Inhabited
+
+inductive Action where
+  | toggle (id : Nat)
+  | resetAll
+  deriving DecidableEq, Repr
+
+def toggleItem (target : Nat) (it : Item) : Item :=
+  if it.id == target then { it with done := !it.done } else it
+
+def step (m : Model) : Action -> Model
+  | .toggle id =>
+    { items := m.items.map (toggleItem id), commit := m.commit + 1 }
+  | .resetAll =>
+    { items := m.items.map (fun it => { it with done := false }), commit := m.commit + 1 }
+
+def completedCount (m : Model) : Nat :=
+  (m.items.filter (fun it => it.done)).length
+
+end Checklist
+```
+
+There are no hooks, observables, or mutable refs here. `step` takes a `Model` and an `Action` and returns the new `Model`.
+
+## 3. Write the view in .lp TSX
+
+Now create `src/App.lp`. A `.lp` file is a Lean module where JSX tags lower directly to `LakeportStyle.StyledView` calls. Every class name in `class="..."` is checked against `src/app.css` during `lakeport check`; if you misspell a class name, compilation fails with the exact line and column.
+
+```lp title="src/App.lp"
+import Checklist
+set_option synthInstance.maxSize 4096
+
+namespace App
+open LakeportStyle Checklist
+
+abbrev Event := Nat × Nat
+abbrev V := StyledView Event Nat
+
+@[default_instance] instance {E F : Type} : ToChildren (List (StyledView E F)) E F :=
+  ⟨fun xs => xs.zipIdx.map fun (v, i) => (some i, v)⟩
+
+def rowView (it : Item) : V :=
+  <div class="row" data-done={it.done}>
+    <button class="hit" onClick={(1, it.id)}>{it.label}</button>
+    <span class="box">{if it.done then "x" else ""}</span>
+    <span class="label">{it.label}</span>
+  </div>
+
+def view (m : Model) : V :=
+  <main class="shell">
+    <header class="head">
+      <h1 class="title">Release checklist</h1>
+      <p class="sub">{toString (completedCount m) ++ " of " ++ toString m.items.length ++ " complete"}</p>
+    </header>
+    <section class="list">
+      {m.items.map rowView}
+    </section>
+    <button class="reset" onClick={(2, 0)}>Reset checklist</button>
+  </main>
+
+def press (m : Model) (ev : Event) : Model × List Lakeport.Signals.Term :=
+  match ev with
+  | (1, id) => (step m (.toggle id), [])
+  | (2, _) => (step m .resetAll, [])
+  | _ => (m, [])
+
+def app : StyledApp Model Unit Event Nat where
+  initial := fun _ => {}
+  view := view
+  encodeEvent := fun (tag, id) => .pair (.nat tag) (.nat id)
+  decodeEvent := fun | .pair (.nat tag) (.nat id) => some (tag, id) | _ => none
+  encodeField := .nat
+  decodeField := fun | .nat n => some n | _ => none
+  press := press
+  edit := fun m _ _ => some (m, [])
+  message := fun m _ => (m, [])
+  decodeNamed := fun _ _ => .error (.codec .badTag)
+  commandImage := fun _ => none
+  appCommit := fun m => m.commit
+  descriptor := "release-checklist/1"
+  profile := ⟨⟨32, 16384⟩, ⟨32, 16384⟩⟩
+
+end App
+```
+
+<Callout kind="note" title="Why buttons contain text labels">
+In Lakeport, `<button>` carries an accessible text label only rather than arbitrary nested `<div>` trees. That rule guarantees every button has a real accessible name on iOS VoiceOver, Android TalkBack, GTK, and the DOM alike. To make a rich card clickable, place `<button class="hit" onClick={...}>{label}</button>` inside a `position: relative` container alongside visual `<span>` children styled with `pointer-events: none`.
+</Callout>
+
+## 4. Add a stylesheet
+
+Create `src/app.css` defining `.shell`, `.head`, `.title`, `.sub`, `.list`, `.row`, `.hit`, `.box`, `.label`, and `.reset`:
+
+```css title="src/app.css"
+* { box-sizing: border-box; }
+body { margin: 0; background: #f8fafc; color: #0f172a; font-family: system-ui, sans-serif; }
+.shell { max-width: 520px; margin: 48px auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.head { display: flex; flex-direction: column; gap: 6px; }
+.title { font-size: 24px; font-weight: 700; }
+.sub { font-size: 14px; color: #475569; }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; }
+.row[data-done="true"] { background: #f1f5f9; }
+.hit { position: absolute; top: 0; right: 0; bottom: 0; left: 0; opacity: 0; cursor: pointer; }
+.box { width: 20px; height: 20px; border: 1px solid #64748b; border-radius: 4px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.label { font-size: 15px; pointer-events: none; }
+.reset { align-self: flex-start; padding: 8px 14px; border-radius: 6px; background: #0f172a; color: #ffffff; }
+```
+
+## 5. Prove your first invariant
+
+Create `src/ChecklistLaws.lean`. Because `App.lp` does not import `ChecklistLaws` and `ChecklistLaws.lean` contains only `theorem` declarations, Lakeport checks the proof during every build and drops the module to `0` bytes of C and WebAssembly.
+
+```lean title="src/ChecklistLaws.lean"
+import Checklist
+
+namespace Checklist.Laws
+open Checklist
+
+theorem step_preserves_item_count (m : Model) (a : Action) :
+    (step m a).items.length = m.items.length := by
+  cases a <;> simp [step]
+
+end Checklist.Laws
+```
+
+## 6. Check and build
+
+Run `lakeport check` for fast feedback, then build the release WebAssembly and pre-rendered HTML bundle:
+
+```sh title="Terminal"
+lakeport check .
+lakeport build web . --release
+```
+
+Inspect `dist/web/index.html`. Lakeport executed your compiled `app.wasm` at build time, wrote the initial `<main class="shell">...</main>` markup directly into `index.html`, and attached `boot.mjs` so the browser hydrates the existing DOM nodes in place on commit `0` without tearing down or recreating a single element.
+
+Now that you have the loop under your fingers, read [Versioned union contracts](/docs/versioned-contracts) to see how Lakeport structures real production apps that talk to a server.
