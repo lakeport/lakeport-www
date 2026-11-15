@@ -1,0 +1,72 @@
+---
+title: "Styling, CSS modules, and .lpcss"
+summary: "Compile-time verified CSS classes, scoped import_css modules, data-attribute state styling, and native .lpcss bundles."
+section: "Building interfaces"
+order: 8
+readingMinutes: 6
+updated: "2026-11-15"
+---
+
+# Styling, CSS modules, and .lpcss
+
+In Lakeport, stylesheets are ordinary `.css` files checked at compile time rather than untyped strings concatenated at runtime. One stylesheet drives both the browser (`bundle.css`) and native desktop/mobile targets (`bundle.lpcss`).
+
+## Compile-time class verification
+
+When you write `class="card card-header"` in a `.lp` file, Lakeport checks every token against your global stylesheet (`[lakeport] css = "src/app.css"`) and built-in utility tokens before Lean even runs.
+
+If you rename `.card-header` to `.panel-header` in `src/app.css` and miss a reference in `src/Marketing.lp`, `lakeport check` stops immediately:
+
+```sh title="Compile-time CSS diagnostic"
+src/Marketing.lp:42:10: error[css-global]: unknown CSS class "card-header":
+  not defined by the global stylesheet and not a supported utility
+```
+
+Dead typos never survive to production.
+
+## Scoped CSS modules for reusable packages
+
+Global stylesheets work well inside an application, yet reusable Reservoir packages (such as `lakeport-mdx`) should never pollute a consumer's global class namespace.
+
+Any `.lp` file can import a co-located stylesheet with `import_css`:
+
+```lp title="packages/lakeport-mdx/src/LakeportMdx/Render.lp"
+import LakeportMdx.Ast
+import_css MdxCss from "./Mdx.css"
+
+def badge (lang : String) : StyledView E F :=
+  <span class={MdxCss.langBadge}>{lang}</span>
+```
+
+Lakeport hashes and scopes every selector in `Mdx.css` per package and generates typed `ClassName` bindings (`MdxCss.langBadge`, `MdxCss.codeCard`, and so on). Misspelling `MdxCss.langBage` fails compilation with a clear hint naming `./Mdx.css`.
+
+## Dynamic state with data-* attributes and CSS variables
+
+Notice that `class="..."` literals are static. Instead of building brittle string templates like `` `btn ${isActive ? 'btn-active' : ''} ${theme}` ``, keep `class="btn"` static and pass dynamic state through typed `data-*` attributes and `--*` CSS custom properties:
+
+```lp title="Static class + typed data attributes"
+<div class="gate-pill" data-open={gateOpen} --pill-accent={accentHex}>
+  <span>{if gateOpen then "Permitted" else "Blocked by Gate"}</span>
+</div>
+```
+
+Then style those states cleanly in CSS:
+
+```css title="src/app.css"
+.gate-pill {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+.gate-pill[data-open="true"] {
+  background: rgba(13, 148, 136, 0.14);
+  color: var(--pill-accent, #0d9488);
+}
+```
+
+## Light and dark themes without duplication
+
+Define all color and surface tokens as CSS custom properties on your root `.site-shell` class, then override **only the tokens** under `.site-shell[data-theme="dark"]` (or `[data-theme="light"]`). Every component reads `var(--bg-surface)`, `var(--ink-primary)`, and `var(--border-subtle)`, so both themes stay synchronized without duplicating layout rules.
+
+Next, read [Routing and static site generation](/docs/routing-and-ssg) to wire typed URLs and zero-create hydration.

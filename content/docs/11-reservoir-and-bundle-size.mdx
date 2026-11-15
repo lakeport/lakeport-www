@@ -1,0 +1,44 @@
+---
+title: "Reservoir modules and bundle size"
+summary: "Why importing rich Lean packages does not bloat your WebAssembly bundle: five layers of dead-code elimination and .ilean reachability."
+section: "Ecosystem and tooling"
+order: 11
+readingMinutes: 8
+updated: "2026-11-15"
+---
+
+# Reservoir modules and bundle size
+
+In the JavaScript ecosystem, adding a dependency is an exercise in anxiety. A harmless-looking markdown or date helper pulls in transitive polyfills, locale tables, and side-effectful module initializers that bundlers dare not tree-shake because importing a JS file can mutate `window`.
+
+Lean 4 has **no top-level module side effects** (outside explicit `@[init]` hooks, which pure Lakeport packages avoid) and **complete static call graphs**. That changes how we design and publish packages to [Reservoir](https://reservoir.lean-lang.org), Lean's package registry.
+
+We can ship rich, well-factored Lakeport packages (`lakeport-mdx`, contract libraries, table engines, currency math, capability state machines) together with hundreds of theorems, knowing that **consumers only pay bytes for the exact computational functions reachable from `App.app`**.
+
+## Five layers of Lean dead-code elimination
+
+When you run `lakeport build web --release`, code disappears at five distinct stages before bytes ever reach a user's browser:
+
+1. **`Prop` and proof-term erasure (`0 B`).** Every type in `Prop` (`WellFormed`, `SafeSlug`, equality proofs inside `MemoCell`) is erased inside the Lean compiler before IR generation. A 2,000-line proof adds zero instructions to your function body.
+2. **Proof-only module omission (`[proof-only, 0 B C]`).** Leaf law modules (`ContractLaws.lean`, `MdxLaws.lean`, `WorkbenchLaws.lean`) are verified by Lean during `lakeport check`, and Lakeport skips compiling and linking their `.c` files altogether.
+3. **`meta` phase separation (`0 B`).** Macros, custom DSL elaborators, and compile-time syntax helpers execute while building `.olean` artifacts and never enter runtime codegen.
+4. **Declaration reachability + Clang LTO (`-ffunction-sections -fdata-sections -Oz -flto -Wl,--gc-sections`).** Lean emits standalone C functions per declaration. If you import `lakeport-mdx` and only call `slugify`, the MDX table parser, syntax highlighter, and `StyledView` renderer are garbage-collected by `wasm-ld` at link time.
+5. **Binaryen whole-program optimization (`wasm-opt -Oz`).** Inlines tiny wrappers, folds constants, and compacts WebAssembly locals across the linked module.
+
+## Interactive dead-code & .ilean explorer
+
+Toggle Reservoir packages and inspect how proof lines vs. reachable runtime declarations affect the compiled output:
+
+<DeadCodeExplorer />
+
+## Retiring dead contract versions with .ilean reachability
+
+Dead-code elimination helps you ship smaller binaries; Lean's `.ilean` reference index helps you delete dead *source code* safely too.
+
+Every compiled module emits an `.ilean` file recording exact declaration-to-declaration references across your entire workspace. When your backend telemetry confirms zero `Version.v1` clients remain in the wild:
+
+1. Check `.ilean` references for `Wire.V1` to see every remaining call site across client and server packages.
+2. Remove `| v1` from `Version` in `shared/`.
+3. Run `lakeport check` and delete each `.v1` handler arm Lean highlights. Once `lakeport check` passes, zero dead `v1` glue remains anywhere in your repository.
+
+Next, finish the guide with [CLI and MCP reference](/docs/cli-and-mcp) for everyday commands and coding-agent integration.

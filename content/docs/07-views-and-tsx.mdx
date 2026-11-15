@@ -1,0 +1,89 @@
+---
+title: "Views, .lp TSX, and memoization"
+summary: "Write typed JSX in Lean, understand accessible hit overlays and keyed lists, and cache expensive subtrees with MemoCell."
+section: "Building interfaces"
+order: 7
+readingMinutes: 8
+updated: "2026-11-15"
+---
+
+# Views, .lp TSX, and memoization
+
+Lakeport `.lp` files let you write familiar JSX markup directly inside Lean 4 modules. Before the Lean compiler runs, `lakeport` lowers every JSX expression into typed `LakeportStyle.StyledView` constructors and writes a line-and-column source map so compiler errors point straight at your `.lp` file.
+
+## Supported HTML and vector primitives
+
+Because a single `.lp` view can render to Web DOM, GTK4, CoreGraphics, Direct2D, UIKit, and Android Views, Lakeport focuses on a compact, well-specified set of semantic elements:
+
+- **Layout and landmarks:** `div`, `span`, `header`, `section`, `main`, `aside`, `footer`, `nav`
+- **Typography:** `h1`, `h2`, `h3`, `p`
+- **Controls:** `button`, `input`, `textarea`
+- **Media and graphics:** `img` (with required `src` and `alt`) and `svg` (containing `path`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `g`, `defs`, `linearGradient`, and `clipPath`)
+
+## Accessible buttons and hit overlays
+
+In HTML it is common (and tempting) to stuff three `<div>`s and an unnamed `<svg>` inside a `<button>` or attach `onClick` to a `<div>`. Screen readers on mobile and desktop struggle with both habits.
+
+Lakeport enforces two rules at compile time:
+
+1. `onClick={event}` is valid **only on `<button>`**.
+2. A `<button>` renders a plain text label (`String`) so every interactive target has an unambiguous accessible name across every platform.
+
+When you want a rich card, navigation tab, or icon button to be clickable, layer an invisible `<button class="hit-overlay">` inside a `position: relative` container and give sibling visual elements `pointer-events: none`:
+
+```lp title="Accessible icon + badge button pattern"
+def navTab (active : Bool) (label : String) (count : Nat) (ev : Event) : V :=
+  <div class="nav-tab" data-active={active}>
+    <button class="hit-overlay" onClick={ev}>{label}</button>
+    <span class="nav-label">{label}</span>
+    <span class="nav-count">{toString count}</span>
+  </div>
+```
+
+Keyboard focus, Enter/Space activation, and VoiceOver/TalkBack labels all attach to the real `<button>`, while your visual layout stays completely flexible.
+
+## Controlled text inputs
+
+`<input>` and `<textarea>` bind to a typed field identifier (`F` in `StyledView E F`) via the `field={...}` attribute:
+
+```lp title="Controlled search field"
+<input
+  class="search-input"
+  field={1}
+  value={state.query}
+  placeholder="Filter documentation..."
+  aria-label="Filter documentation"
+/>
+```
+
+Whenever the user edits the input, the host shell invokes `app.edit state fieldId newValue`, returning the updated `State` and any outbound effects.
+
+## Keyed lists
+
+When rendering a `List` or `Array` of child views, Lakeport needs a stable `Nat` key per child so the reconciler updates moved or edited rows in place. You can attach `key={item.id}` explicitly on each element, or provide a module-local `ToChildren` instance for static positional lists:
+
+```lean title="Positional keys for static lists"
+@[default_instance] instance {E F : Type} : ToChildren (List (StyledView E F)) E F :=
+  ⟨fun xs => xs.zipIdx.map fun (v, i) => (some i, v)⟩
+```
+
+Use explicit `key={item.id}` whenever rows can be reordered, inserted at the head, or deleted mid-list.
+
+## Proved subtree memoization with MemoCell
+
+In JavaScript frameworks, `useMemo` trusts you to list every dependency in an array; forget one and your UI displays stale data.
+
+Because Lean functions are pure, `LakeportStyle.MemoCell α β f` stores `(input : α)`, `(output : β)`, and an erased proof `coherent : output = f input`. On a cache hit (`c.input = x`), `c.refresh x` returns `c` untouched with zero heap allocations:
+
+```lean title="Caching parsed MDX views in application state"
+def renderDocSlug (slug : DocSlug) : MdxDoc :=
+  LakeportMdx.parseMdx (Docs.rawSource slug)
+
+structure DocsCache where
+  current : MemoCell DocSlug MdxDoc renderDocSlug :=
+    MemoCell.init renderDocSlug .introduction
+```
+
+Even better, `MemoCell.refresh_get` is a kernel-checked theorem (`(c.refresh x).get = f x`), so caching can never cause your view to diverge from recomputing from scratch, and the `coherent` field erases to zero bytes at runtime.
+
+Next, read [Styling and .lpcss](/docs/styling-and-lpcss) to see how Lakeport compiles CSS with zero runtime style recalculation overhead.

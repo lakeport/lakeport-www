@@ -1,0 +1,50 @@
+---
+title: "Host effects and offline resilience"
+summary: "Issue typed HTTP, WebSocket, KV, and clipboard commands as data values, and reconcile mid-flight disconnects without double-sends."
+section: "Building interfaces"
+order: 10
+readingMinutes: 7
+updated: "2026-11-15"
+---
+
+# Host effects and offline resilience
+
+A pure reducer cannot open sockets or read `localStorage` behind your back. Instead, `step` returns a pair `(State × List EffectReq)`. Your reducer describes *what* side effect it wants to perform as an ordinary value, and the Lakeport host shell executes it asynchronously and delivers an `EffectResp` message back into `app.message`.
+
+## Built-in EffectReq commands
+
+`LakeportEffects` ships typed request and response constructors that work identically across Web and native shells:
+
+- **HTTP & Streaming:** `.httpGet`, `.httpPost`, `.httpRequest` (custom verbs & headers), `.httpStream` (SSE / chunked responses), `.httpCancel`
+- **WebSockets:** `.wsConnect`, `.wsSend`, `.wsSendBytes`, `.wsClose`
+- **Key-Value Persistence:** `.kvGet`, `.kvSet`, `.kvDelete` (`localStorage` on web, native preferences on desktop/mobile)
+- **UX & Clipboard:** `.clipboardWrite`, `.haptic` (`light`, `medium`, `heavy`, `success`, `warning`, `error`), `.sleepMs`
+- **Typed Native Plugins:** `.pluginInvoke`, `.pluginSubscribe`, `.pluginUnsubscribe`
+
+For example, when you click **Copy** on any code snippet in these docs, our reducer emits a single value:
+
+```lean title="Copy button reducer branch"
+let req := EffectReq.clipboardWrite state.nextReqId snippetText
+({ state with copiedKey := key, nextReqId := state.nextReqId + 1 }, [req.toTerm])
+```
+
+Because `EffectReq.clipboardWrite` is plain data, unit tests and Lean theorems can assert on the exact list of emitted commands without mocking `navigator.clipboard`.
+
+## Surviving mid-flight disconnects without duplicate charges
+
+Network drops expose a subtle distinction that naive retry loops get wrong:
+
+- **Queued (`pending`):** The command is sitting in the client's local outbox and has *never* been written to a socket. Safe to send as soon as a connection opens (provided `permitsEncodedFrame` still passes).
+- **Uncertain (`uncertain`):** The command was written to a socket (`wsSend` or `httpPost`), and the connection dropped *before* the server returned an `ack` or `rejected` frame.
+
+Did the server commit the transaction right before the TCP connection died, or did the packet drop in the subway tunnel? **The client does not know.**
+
+If an agent writes a retry handler that blindly resets `inFlight := false` and re-sends with a fresh request ID, the server executes the debit twice. Instead, model `.uncertain` explicitly in your state (or use `LakeportEffects.Outbox`):
+
+1. Attach a stable client idempotency ID (`cid`) when the user initiates the command, before any network call.
+2. On socket close while `inFlight`, transition the entry to `.uncertain` rather than `.queued`.
+3. Reconcile against server state (or replay *with the original `cid`*) only after re-negotiating capabilities on reconnect.
+
+You can test both the verified state machine and the buggy double-debit agent patch live in the Workbench on the [Lakeport homepage](/).
+
+Next, read [Reservoir modules and bundle size](/docs/reservoir-and-bundle-size) to see how Lean strips unused library code and all proof terms out of your final `.wasm` binary.
