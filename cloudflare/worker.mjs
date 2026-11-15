@@ -3,7 +3,8 @@
  *
  * - Redirects `www.lakeport.dev` and edge `http://lakeport.dev` requests to canonical `https://lakeport.dev`
  * - Serves `GET /api/capabilities` in `Site.Contract` wire format (`CAPS\t1\t...`)
- * - Delegates all pre-rendered SSG HTML, CSS, and Lean WebAssembly assets to `env.ASSETS`
+ * - Maps `/favicon.ico` and `/favicon.svg` to `/assets/brand/*`
+ * - Delegates pre-rendered SSG HTML, CSS, WOFF2 fonts, and Lean WebAssembly assets to `env.ASSETS`
  */
 
 const HSTS = 'max-age=31536000; includeSubDomains; preload';
@@ -21,7 +22,17 @@ function applyEdgeHeaders(response, pathname, isHttpsProduction) {
   if (pathname.endsWith('.wasm')) {
     headers.set('Content-Type', 'application/wasm');
     headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-  } else if (pathname.endsWith('.css') || pathname.endsWith('.mjs') || pathname.endsWith('.js') || pathname.endsWith('.svg')) {
+  } else if (pathname.endsWith('.woff2')) {
+    headers.set('Content-Type', 'font/woff2');
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  } else if (
+    pathname.endsWith('.css') ||
+    pathname.endsWith('.mjs') ||
+    pathname.endsWith('.js') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.png')
+  ) {
     headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
   } else if (!headers.has('Cache-Control')) {
     headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
@@ -68,6 +79,13 @@ export default {
         url.pathname,
         isHttpsProduction
       );
+    }
+
+    if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
+      const targetUrl = new URL(`/assets/brand${url.pathname}`, url.origin);
+      const rewritten = new Request(targetUrl.toString(), request);
+      const assetRes = await env.ASSETS.fetch(rewritten);
+      return applyEdgeHeaders(assetRes, targetUrl.pathname, isHttpsProduction);
     }
 
     const assetResponse = await env.ASSETS.fetch(request);
