@@ -1,0 +1,13 @@
+name = "site-contract"
+version = "0.1.0"
+description = "Shared edge protocol versions, capability advertisements, and dependent Request/Response contract"
+license = "Apache-2.0"
+defaultTargets = ["SiteContract"]
+
+[[lean_lib]]
+name = "SiteContract"
+srcDir = "."
+roots = ["SiteContract"]
+
+[lakeport]
+kind = "sdk"
