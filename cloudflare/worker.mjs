@@ -4,8 +4,8 @@
  * - Redirects `www.lakeport.dev` and edge `http://lakeport.dev` requests to canonical `https://lakeport.dev`
  * - Serves `GET /api/capabilities` in `Site.Contract` wire format (`CAPS\t1\t...`)
  * - Serves host-aware `/.well-known/ard.json` and `/robots.txt` for SEO & Agentic Resource Discovery
- * - Maps `/favicon.ico` and `/favicon.svg` to `/assets/brand/*`
- * - Applies strict CSP (no `'unsafe-inline'`), HSTS, COOP, CORP, Permissions-Policy, and asset caching
+ * - Maps `/favicon.ico`, `/favicon.svg`, `/apple-touch-icon.png`, `/site.webmanifest`, and `/brand/*` to `/assets/brand/*`
+ * - Applies strict CSP (no `'unsafe-inline'`), HSTS, COOP, COEP, CORP, Permissions-Policy, and asset caching
  */
 
 const HSTS = 'max-age=31536000; includeSubDomains; preload';
@@ -26,6 +26,13 @@ const PERMISSIONS_POLICY =
   'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()';
 const CAPABILITY_ADVERTISEMENT = 'CAPS\t1\tlpw1,lpw2\tinstant_release,audit_receipt,batch_settle';
 
+const ROOT_ASSET_REWRITES = new Map([
+  ['/favicon.ico', '/assets/brand/icon/favicon.ico'],
+  ['/favicon.svg', '/assets/brand/icon/favicon.svg'],
+  ['/apple-touch-icon.png', '/assets/brand/icon/apple-touch-icon.png'],
+  ['/site.webmanifest', '/assets/brand/site.webmanifest'],
+]);
+
 function buildArdManifest(publisher, externalOrigin) {
   return JSON.stringify(
     {
@@ -34,7 +41,7 @@ function buildArdManifest(publisher, externalOrigin) {
           identifier: `urn:air:${publisher}:docs:skills`,
           displayName: 'Lakeport Documentation and Agent Guide',
           description:
-            'Documentation for .lp JSX-style views, CSS styling, plain-English business rules, versioned client API contracts, and the lakeport mcp compiler tool server.',
+            'Apps your agents can prove. Documentation for .lp JSX-style views, CSS styling, plain-English business rules, versioned client API contracts, and the lakeport mcp compiler tool server.',
           type: 'text/markdown; profile="urn:air:agent-skills"',
           url: `${externalOrigin}/llms.txt`,
           representativeQueries: [
@@ -70,13 +77,17 @@ function applyEdgeHeaders(response, pathname, isHttps) {
   } else if (pathname.endsWith('.woff2')) {
     headers.set('Content-Type', 'font/woff2');
     headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  } else if (pathname.endsWith('.webmanifest')) {
+    headers.set('Content-Type', 'application/manifest+json; charset=utf-8');
+    headers.set('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
   } else if (
     pathname.endsWith('.css') ||
     pathname.endsWith('.mjs') ||
     pathname.endsWith('.js') ||
     pathname.endsWith('.svg') ||
     pathname.endsWith('.ico') ||
-    pathname.endsWith('.png')
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.json')
   ) {
     headers.set('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
   } else if (pathname === '/llms.txt') {
@@ -166,8 +177,19 @@ export default {
       );
     }
 
-    if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
-      const targetUrl = new URL(`/assets/brand${url.pathname}`, url.origin);
+    let rewrittenPathname = ROOT_ASSET_REWRITES.get(url.pathname) || null;
+    if (!rewrittenPathname) {
+      if (url.pathname.startsWith('/brand/fonts/')) {
+        rewrittenPathname = `/assets/fonts/${url.pathname.slice('/brand/fonts/'.length)}`;
+      } else if (url.pathname.startsWith('/assets/brand/fonts/')) {
+        rewrittenPathname = `/assets/fonts/${url.pathname.slice('/assets/brand/fonts/'.length)}`;
+      } else if (url.pathname.startsWith('/brand/')) {
+        rewrittenPathname = `/assets${url.pathname}`;
+      }
+    }
+
+    if (rewrittenPathname) {
+      const targetUrl = new URL(rewrittenPathname, url.origin);
       const rewritten = new Request(targetUrl.toString(), request);
       const assetRes = await env.ASSETS.fetch(rewritten);
       return applyEdgeHeaders(assetRes, targetUrl.pathname, isHttps);

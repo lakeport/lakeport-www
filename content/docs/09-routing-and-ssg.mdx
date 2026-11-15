@@ -70,7 +70,7 @@ Wrap your root view in `<RouterShell url={currentUrl} canBack={canBack}>`:
 </RouterShell>
 ```
 
-On the web, `RouterShell` synchronizes `history.pushState` and `popstate` events cleanly with your Lean state. On Android and iOS, `canBack` drives the system back gesture interceptor so users never accidentally exit your app while a sheet or drawer is open.
+On the web, `RouterShell` synchronizes `history.pushState` and `popstate` events cleanly with your Lean state. For mobile host shells, `canBack` also exposes an explicit boolean signal for back-gesture integration as native adapters land.
 
 ## 3. Static site generation (SSG) and commit-0 hydration
 

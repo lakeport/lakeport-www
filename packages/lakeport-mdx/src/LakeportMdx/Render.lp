@@ -24,6 +24,7 @@ structure RenderHooks (E F : Type) where
 private def tokClass : TokKind → ClassName
   | .plain => MdxCss.tokPlain
   | .keyword => MdxCss.tokKeyword
+  | .tactic => MdxCss.tokTactic
   | .typeName => MdxCss.tokType
   | .decl => MdxCss.tokDecl
   | .stringLit => MdxCss.tokString

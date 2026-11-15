@@ -10,6 +10,7 @@ namespace LakeportMdx
 inductive TokKind where
   | plain
   | keyword
+  | tactic
   | typeName
   | decl
   | stringLit
@@ -19,13 +20,17 @@ inductive TokKind where
   | number
   deriving DecidableEq, Repr, Inhabited
 
+def leanTactics : List String := [
+  "rfl", "simp", "simp_all", "cases", "decide", "omega", "intro", "exact",
+  "rw", "apply", "constructor", "rcases", "unfold", "split", "rename_i", "dsimp"
+]
+
 def leanKeywords : List String := [
   "import", "import_css", "from", "namespace", "end", "open", "def", "abbrev",
   "theorem", "lemma", "structure", "inductive", "class", "instance", "where",
   "deriving", "match", "with", "if", "then", "else", "let", "mut", "do",
-  "return", "pure", "for", "in", "by", "rfl", "simp", "cases", "intro",
-  "exact", "fun", "private", "protected", "noncomputable", "true", "false",
-  "some", "none", "set_option"
+  "return", "pure", "for", "in", "by", "fun", "private", "protected",
+  "noncomputable", "true", "false", "some", "none", "set_option"
 ]
 
 def leanBuiltins : List String := [
@@ -81,7 +86,8 @@ def classifyWord (lang : String) (w : String) : TokKind :=
   else if lang == "toml" then
     if w == "true" || w == "false" then .keyword else .attr
   else
-    if leanKeywords.contains w then
+    if leanTactics.contains w then .tactic
+    else if leanKeywords.contains w then
       if w == "theorem" || w == "def" || w == "structure" || w == "inductive" || w == "instance" then .decl
       else .keyword
     else if leanBuiltins.contains w then .typeName
@@ -155,7 +161,6 @@ def tokensText (toks : List (TokKind × String)) : String :=
 
 /-- Highlight a multi-line code block line by line. -/
 def highlightCode (lang : String) (code : String) : List (List (TokKind × String)) :=
-  (code.splitOn "
-").map (highlightLine lang)
+  (code.splitOn "\n").map (highlightLine lang)
 
 end LakeportMdx

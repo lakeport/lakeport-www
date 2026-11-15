@@ -18,8 +18,8 @@ hostEpoch = [42, 1, 1]
 nodeCapacity = 65536
 
 [lakeport.web]
-title = "Lakeport: Build apps with agents, prove the rules that matter"
-description = "Write JSX-style .lp views and CSS while your coding agent handles the state logic and proofs. Compiles to WebAssembly and native apps without requiring you to know Lean."
+title = "Lakeport: Apps your agents can prove."
+description = "Apps your agents can prove. Write JSX-style .lp views and CSS, state critical checkout or API rules in English, and ship verified WebAssembly without needing to know Lean."
 mode = "ssg"
 themeColor = "#00181B"
 caps = { publicCap = 524288, heldCap = 262144 }

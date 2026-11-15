@@ -11,8 +11,8 @@ set_option synthInstance.maxSize 4096
 /-!
 # `App` : Lakeport Website & Technical Manual Root (`App.app`)
 
-Mounts `RouterShell`, solid editorial navigation chrome, brand theme tokens,
-and all 17 pre-rendered SSG routes (`0 sorryAx`).
+Mounts `RouterShell`, solid editorial navigation chrome, official Lakeport brand
+tokens (`brand/tokens/lakeport.css`), and all 17 pre-rendered SSG routes (`0 sorryAx`).
 -/
 namespace App
 open Lakeport.Signals LakeportStyle LakeportRouter LakeportEffects
@@ -102,7 +102,7 @@ def footerView : V :=
             <button class="hit-overlay" onClick={Ev.nav "/"}>Lakeport home</button>
             {logoLockup "footer"}
           </div>
-          <span class="footer-tagline">Build apps with coding agents, prove the rules that matter.</span>
+          <span class="footer-tagline">Apps your agents can prove.</span>
         </div>
 
         <div class="footer-nav">
@@ -117,8 +117,8 @@ def footerView : V :=
       </div>
 
       <div class="footer-colophon">
-        <span>Built with Lakeport: 17 static HTML pages, 459 KB gzipped WebAssembly</span>
-        <span class="footer-qed">Apache-2.0</span>
+        <span>Built with Lakeport: 17 static HTML pages, compiled Lean WebAssembly</span>
+        <span class="footer-qed">Apache-2.0, ∎</span>
       </div>
     </div>
   </footer>

@@ -3,16 +3,18 @@ import Docs.CatalogGen
 import Docs.Registry
 import State
 import Events
+import Brand
 import Widgets
 set_option synthInstance.maxSize 4096
 /-!
 # `Site.DocsView`: 3-Column Technical Manual & Documentation Hub
 
-Renders `/docs` (ruled chapter index) and `/docs/<slug>` (left search/section nav,
-center MDX prose with embedded live Lakeport widgets, right sticky TOC, and prev/next pager).
+Renders `/docs` (with the official `Lake / Port` primary logotype) and `/docs/<slug>`
+(left chapter search/nav, center MDX prose at ~65ch measure, right sticky TOC,
+end-of-chapter `∎` tombstone, and prev/next pager).
 -/
 namespace Site.DocsView
-open LakeportStyle LakeportMdx Site Site.Docs Site.Widgets
+open LakeportStyle LakeportMdx Site Site.Docs Site.Brand Site.Widgets
 
 abbrev V := StyledView UiEvent Nat
 
@@ -24,9 +26,13 @@ def docsIndexPage : V :=
     <section class="hero-air">
       <div class="container">
         <div class="packages-intro">
-          <h1 class="display-xl">Documentation</h1>
+          {primaryLogo "docs"}
+          <h1 class="display-xl">
+            <span>{"Check it "}</span>
+            <span class="brand-inline">before it ships.</span>
+          </h1>
           <p class="lead-editorial">
-            Twelve practical guides to building web and native apps with Lakeport, starting with a ten-minute starter project and growing into coding-agent workflows, client API contracts, and checked business rules. No prior Lean background required.
+            Twelve practical guides to building compiled WebAssembly apps with Lakeport, starting with a ten-minute starter project and growing into coding-agent workflows, client API contracts, and checked business rules. No prior Lean background required.
           </p>
           <div class="cta-row">
             {primaryBtn "Start with Introduction" (Ev.nav "/docs/introduction")}
@@ -36,9 +42,7 @@ def docsIndexPage : V :=
       </div>
     </section>
 
-    <div class="waterline-rule" />
-
-    <section class="editorial-section">
+    <section class="editorial-section section-ruled">
       <div class="container">
         {sectionsOrder.map fun sec =>
           <div class="docs-index-section">
@@ -103,6 +107,10 @@ def docsArticlePage (s : AppState) (slug : DocSlug) : V :=
       </div>
 
       {renderBlocks (mdxHooks s) doc.blocks}
+
+      <div class="chapter-qed">
+        <span>{"∎"}</span>
+      </div>
 
       <div class="docs-pager">
         {(prevOpt.map fun prev =>

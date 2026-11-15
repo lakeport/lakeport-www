@@ -18,7 +18,7 @@ Everything in Lakeport runs through a single native command-line binary: `lakepo
 | `lakeport check [dir]` | Lowers `.lp` TSX, validates global and scoped CSS classes, type-checks all `.lean` modules and `*Laws.lean` theorems, and maps diagnostics back to `.lp`/`.css` line numbers. |
 | `lakeport build web [dir] --release` | Runs `check`, compiles reachable runtime modules to `wasm32` (`-Oz`, LTO, `--gc-sections`, `wasm-opt`), pre-renders all `ssgRoutes` to static HTML, and emits `dist/web/`. |
 | `lakeport dev [dir]` | Starts a local development server with automatic rebuilds on `.lean`, `.lp`, and `.css` edits. |
-| `lakeport build <target> [dir]` | Builds native target outputs (`linux`, `macos`, `windows`, `ios`, `android`). |
+| `lakeport build <target> [dir]` | Builds experimental native target outputs (`linux`, `macos`, `windows`, `ios`, `android`; framework support gates open). |
 | `lakeport doctor` | Audits installed compilers, linkers, Binaryen, Node, and platform SDKs. |
 | `lakeport mcp` | Starts the Model Context Protocol server over stdio so coding agents can invoke structured checks and inspect diagnostics. |
 

@@ -1,11 +1,12 @@
-/* Lakeport Brand & Documentation Stylesheet (`src/app.css`)
+/* Lakeport v1 Brand & Documentation Stylesheet (`src/app.css`)
  *
- * Implements the concluded Lakeport brand system:
- *   - Typography: Geist (display), Schibsted Grotesk (editorial prose/UI),
+ * Synced to `brand/tokens/lakeport.css` & `brand/README.md`:
+ *   - Typography: Geist (display, 600, -0.03em), Schibsted Grotesk (body, 16px / 1.6 / ~65ch),
  *     JetBrains Mono + Lakeport Math (Lean 4 code, theorems, tabular readouts)
- *   - Palette: Mist (#F8F6F3), Abyss (#00181B), Deep (#112424),
- *     Lake (#06736A), Shallows (#54D5CA), Foam (#E1F5F2), Amber (#F0B054 / #8A5601)
- *   - Architecture: One full-bleed 1px waterline transition per marketing route
+ *   - Palette: Abyss (#00181B), Deep (#112424), Lake (#06736A), Shallows (#54D5CA),
+ *     Foam (#E1F5F2), Mist (#F8F6F3), Beacon (#F0B054 / #8A5601, <= 1 highlight per view)
+ *   - Evidence discipline: ● proved, ◐ trusted, ○ unknown (dashed), ✕ failed
+ *   - Waterline: 1px Shallows (#54D5CA) line with 5-band fading reflection (once per page)
  */
 
 @font-face {
@@ -54,6 +55,8 @@ body {
   background: #F8F6F3;
   color: #112424;
   font-family: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -96,7 +99,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline-offset: 2px;
 }
 
-/* ------------------------------------------------------------------ Brand Palette & Scale */
+/* ------------------------------------------------------------------ Brand Palette & Scale (`brand/tokens/lakeport.css`) */
 
 :root {
   --lp-stone-50: #F8F6F3;
@@ -123,55 +126,131 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --lp-lake-900: #032723;
   --lp-lake-950: #001915;
 
-  --lp-amber-50: #FEF6E8;
-  --lp-amber-100: #FFE9CB;
-  --lp-amber-200: #FED398;
-  --lp-amber-300: #F0B054;
-  --lp-amber-400: #D68D07;
-  --lp-amber-500: #AF7107;
-  --lp-amber-600: #8A5601;
-  --lp-amber-900: #311A01;
+  --lp-beacon-50: #FEF6E8;
+  --lp-beacon-100: #FFE9CB;
+  --lp-beacon-200: #FED398;
+  --lp-beacon-300: #F0B054;
+  --lp-beacon-400: #D68D07;
+  --lp-beacon-500: #AF7107;
+  --lp-beacon-600: #8A5601;
+  --lp-beacon-700: #694002;
+  --lp-beacon-800: #4A2A01;
+  --lp-beacon-900: #311A01;
+  --lp-beacon-950: #210F00;
 
   --lp-proved-50: #E4FFEC;
+  --lp-proved-100: #CFF9DC;
+  --lp-proved-200: #AEECC2;
   --lp-proved-300: #77D59A;
+  --lp-proved-400: #33BA72;
+  --lp-proved-500: #049957;
   --lp-proved-600: #037743;
+  --lp-proved-700: #015A31;
+  --lp-proved-800: #013E20;
   --lp-proved-900: #002813;
+  --lp-proved-950: #001A0A;
 
   --lp-trusted-50: #F2F7FE;
+  --lp-trusted-100: #E1EEFF;
+  --lp-trusted-200: #C4DDFE;
   --lp-trusted-300: #91C1FE;
+  --lp-trusted-400: #61A1F1;
+  --lp-trusted-500: #3A81D7;
   --lp-trusted-600: #1C62B3;
+  --lp-trusted-700: #0B498D;
+  --lp-trusted-800: #073262;
   --lp-trusted-900: #08203E;
+  --lp-trusted-950: #071425;
 
   --lp-unknown-50: #F7F5FE;
+  --lp-unknown-100: #EEEAFE;
+  --lp-unknown-200: #DDD4FF;
   --lp-unknown-300: #C3AFFE;
+  --lp-unknown-400: #A688F3;
+  --lp-unknown-500: #8966D9;
   --lp-unknown-600: #6C49B5;
+  --lp-unknown-700: #52338E;
+  --lp-unknown-800: #382363;
   --lp-unknown-900: #24173E;
+  --lp-unknown-950: #150F24;
 
   --lp-failed-50: #FFF4F3;
+  --lp-failed-100: #FFE6E4;
+  --lp-failed-200: #FECDC8;
   --lp-failed-300: #FFA098;
+  --lp-failed-400: #FD6661;
+  --lp-failed-500: #E0383B;
   --lp-failed-600: #BA0B1F;
+  --lp-failed-700: #8F0314;
+  --lp-failed-800: #65010B;
   --lp-failed-900: #410709;
+  --lp-failed-950: #270808;
 
   --lp-foam: #E1F5F2;
-  --lp-abyss: #00181B;
-  --lp-paper: #F8F6F3;
+  --lp-abyss: var(--lp-stone-950);
+  --lp-paper: var(--lp-stone-50);
 
   --lp-font-display: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --lp-font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --lp-font-mono: "JetBrains Mono", "Lakeport Math", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --lp-text-xs: 0.75rem;
+  --lp-text-sm: 0.875rem;
+  --lp-text-md: 1rem;
+  --lp-text-lg: 1.125rem;
+  --lp-text-xl: 1.25rem;
+  --lp-text-2xl: 1.5625rem;
+  --lp-text-3xl: 1.953rem;
+  --lp-text-4xl: 2.441rem;
+  --lp-text-5xl: 3.052rem;
+  --lp-text-6xl: 4.768rem;
+
+  --lp-leading-tight: 1.05;
+  --lp-leading-snug: 1.25;
+  --lp-leading-body: 1.6;
+  --lp-tracking-display: -0.03em;
+  --lp-weight-display: 600;
+  --lp-tracking-eyebrow: 0.08em;
+
+  --lp-radius-sm: 6px;
+  --lp-radius-md: 10px;
+  --lp-radius-lg: 16px;
+  --lp-space-1: 4px;
+  --lp-space-2: 8px;
+  --lp-space-3: 12px;
+  --lp-space-4: 16px;
+  --lp-space-6: 24px;
+  --lp-space-8: 32px;
+  --lp-space-12: 48px;
+  --lp-space-16: 64px;
+  --lp-space-24: 96px;
+  --lp-ease-tide: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --lp-dur-ripple: 1400ms;
+
+  /* Lean code highlighting (one dark-water palette across themes) */
+  --lp-syn-keyword: var(--lp-trusted-300);
+  --lp-syn-type: var(--lp-lake-300);
+  --lp-syn-string: var(--lp-beacon-300);
+  --lp-syn-comment: var(--lp-stone-400);
+  --lp-syn-number: var(--lp-unknown-300);
+  --lp-syn-tactic: var(--lp-proved-300);
+  --lp-syn-error: var(--lp-failed-300);
 }
 
 /* Default / Light Theme (`Mist` air above water, `Abyss` below water) */
 .site-shell,
 .site-shell[data-theme="light"] {
   color-scheme: light;
+  --bg: var(--lp-paper);
   --air: var(--lp-paper);
   --docs-bg: var(--lp-paper);
   --surface: #FFFFFF;
   --surface-2: var(--lp-stone-100);
   --surface-hover: #F1F0EC;
+  --text: var(--lp-stone-900);
+  --text-muted: var(--lp-stone-600);
   --ink: var(--lp-stone-900);
-  --ink-body: #20312F;
+  --ink-body: var(--lp-stone-900);
   --ink-muted: var(--lp-stone-600);
   --ink-faint: var(--lp-stone-600);
   --border: var(--lp-stone-200);
@@ -181,9 +260,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --brand-hover: var(--lp-lake-700);
   --on-brand: #FFFFFF;
   --brand-soft: var(--lp-lake-50);
-  --accent: var(--lp-amber-600);
+  --accent: var(--lp-beacon-600);
+  --accent-soft: var(--lp-beacon-50);
   --focus: var(--lp-lake-500);
-  --waterline: var(--lp-lake-600);
+  --code-bg: var(--lp-abyss);
+  --code-text: var(--lp-stone-100);
+  --waterline: var(--lp-lake-300);
 
   --mark-upper: var(--lp-stone-900);
   --mark-reflection: var(--lp-lake-600);
@@ -201,7 +283,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --mdx-display: var(--lp-font-display);
   --mdx-mono: var(--lp-font-mono);
   --mdx-strong: var(--lp-stone-900);
-  --mdx-ink: #20312F;
+  --mdx-ink: var(--lp-stone-900);
   --mdx-muted: var(--lp-stone-600);
   --mdx-faint: var(--lp-stone-600);
   --mdx-rule: var(--lp-stone-200);
@@ -217,13 +299,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --mdx-callout-bg: #F1F7F6;
   --mdx-callout-tip: #EDF9F6;
   --mdx-callout-imp: #F3F5FB;
-  --mdx-callout-warn: var(--lp-amber-50);
+  --mdx-callout-warn: var(--lp-beacon-50);
   --mdx-table-head: var(--lp-stone-100);
 
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--air);
+  background: var(--bg);
   color: var(--ink-body);
   font-family: var(--lp-font-sans);
 }
@@ -232,11 +314,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 @media (prefers-color-scheme: dark) {
   .site-shell[data-theme="auto"] {
     color-scheme: dark;
-    --air: var(--lp-stone-900);
+    --bg: var(--lp-abyss);
+    --air: var(--lp-abyss);
     --docs-bg: var(--lp-abyss);
-    --surface: #152B2B;
+    --surface: var(--lp-stone-900);
     --surface-2: var(--lp-stone-800);
-    --surface-hover: #1B3433;
+    --surface-hover: #17302F;
+    --text: var(--lp-foam);
+    --text-muted: var(--lp-stone-300);
     --ink: var(--lp-foam);
     --ink-body: #C9DFDC;
     --ink-muted: var(--lp-stone-300);
@@ -248,9 +333,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     --brand-hover: var(--lp-lake-200);
     --on-brand: var(--lp-abyss);
     --brand-soft: var(--lp-lake-900);
-    --accent: var(--lp-amber-300);
+    --accent: var(--lp-beacon-300);
+    --accent-soft: var(--lp-beacon-900);
     --focus: var(--lp-lake-300);
-    --waterline: rgba(84, 213, 202, 0.52);
+    --code-bg: var(--lp-abyss);
+    --code-text: var(--lp-stone-100);
+    --waterline: rgba(84, 213, 202, 0.72);
 
     --mark-upper: var(--lp-foam);
     --mark-reflection: var(--lp-lake-300);
@@ -289,11 +377,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 /* Explicit Dark Theme */
 .site-shell[data-theme="dark"] {
   color-scheme: dark;
-  --air: var(--lp-stone-900);
+  --bg: var(--lp-abyss);
+  --air: var(--lp-abyss);
   --docs-bg: var(--lp-abyss);
-  --surface: #152B2B;
+  --surface: var(--lp-stone-900);
   --surface-2: var(--lp-stone-800);
-  --surface-hover: #1B3433;
+  --surface-hover: #17302F;
+  --text: var(--lp-foam);
+  --text-muted: var(--lp-stone-300);
   --ink: var(--lp-foam);
   --ink-body: #C9DFDC;
   --ink-muted: var(--lp-stone-300);
@@ -305,9 +396,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --brand-hover: var(--lp-lake-200);
   --on-brand: var(--lp-abyss);
   --brand-soft: var(--lp-lake-900);
-  --accent: var(--lp-amber-300);
+  --accent: var(--lp-beacon-300);
+  --accent-soft: var(--lp-beacon-900);
   --focus: var(--lp-lake-300);
-  --waterline: rgba(84, 213, 202, 0.52);
+  --code-bg: var(--lp-abyss);
+  --code-text: var(--lp-stone-100);
+  --waterline: rgba(84, 213, 202, 0.72);
 
   --mark-upper: var(--lp-foam);
   --mark-reflection: var(--lp-lake-300);
@@ -371,24 +465,41 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .svg-box[data-size="14"] { width: 14px; height: 14px; }
 .svg-box[data-size="18"] { width: 18px; height: 18px; }
 
-.brand-mark-svg {
+/* Primary `Lake / Port` logotype (`viewBox="18.5 3.875 119.250 56.250"`, min height 56px, >= 3.5u clear space) */
+.brand-primary-frame {
+  display: inline-flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  padding: 8px 0 12px;
+}
+
+.brand-primary-svg {
   display: block;
-  width: 28px;
-  height: 28px;
   pointer-events: none;
 }
 
+.brand-primary-svg[data-variant="hero"] {
+  width: 161px;
+  height: 76px;
+}
+
+.brand-primary-svg[data-variant="docs"] {
+  width: 136px;
+  height: 64px;
+}
+
+/* Horizontal lockup (`viewBox="18.5 3.875 135.29 56.25"`, mark + Geist SemiBold wordmark) */
 .brand-lockup-svg {
   display: block;
   pointer-events: none;
 }
 .brand-lockup-svg[data-variant="header"] {
-  width: 102px;
+  width: 101px;
   height: 42px;
 }
 .brand-lockup-svg[data-variant="footer"] {
-  width: 92px;
-  height: 38px;
+  width: 87px;
+  height: 36px;
 }
 
 .mark-upper,
@@ -418,8 +529,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
-  border-radius: 4px;
+  padding: 2px 10px 2px 8px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
   font-family: var(--lp-font-mono);
   font-size: 11.5px;
   font-weight: 600;
@@ -438,6 +550,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .ev-item[data-ev="unknown"] .ev-badge {
   color: var(--unknown);
   background: var(--unknown-soft);
+  border-style: dashed;
 }
 .ev-item[data-ev="failed"] .ev-badge {
   color: var(--failed);
@@ -451,6 +564,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 .ev-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: var(--lp-font-sans);
   font-size: 13.5px;
   color: var(--ink-body);
@@ -581,12 +696,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 /* ------------------------------------------------------------------ Display & Editorial Typography */
 
+.display-hero {
+  font-family: var(--lp-font-display);
+  font-size: 68px;
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+  color: var(--ink);
+}
+
 .display-xl {
   font-family: var(--lp-font-display);
-  font-size: 58px;
+  font-size: 56px;
   font-weight: 600;
-  line-height: 1.03;
-  letter-spacing: -0.035em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   color: var(--ink);
 }
 
@@ -595,7 +719,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 38px;
   font-weight: 600;
   line-height: 1.1;
-  letter-spacing: -0.028em;
+  letter-spacing: -0.03em;
   color: var(--ink);
 }
 
@@ -604,7 +728,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 30px;
   font-weight: 600;
   line-height: 1.15;
-  letter-spacing: -0.024em;
+  letter-spacing: -0.025em;
   color: var(--ink);
 }
 
@@ -622,22 +746,27 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--brand);
 }
 
+.brand-inline {
+  color: var(--brand);
+}
+
 .accent-phrase {
   color: var(--accent);
   font-weight: 600;
 }
 
 .lead-editorial {
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.6;
   color: var(--ink-body);
-  max-width: 620px;
+  max-width: 65ch;
 }
 
 .body-editorial {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.6;
   color: var(--ink-body);
+  max-width: 65ch;
 }
 
 .mono-kicker {
@@ -683,19 +812,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   background: var(--brand-hover);
 }
 
-.btn-amber {
+.btn-accent {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 11px 18px;
   border-radius: 6px;
-  background: var(--lp-amber-300);
-  color: var(--lp-stone-900);
+  background: var(--lp-beacon-300);
+  color: var(--lp-stone-950);
 }
 
-.btn-amber:hover {
-  background: var(--lp-amber-200);
+.btn-accent:hover {
+  background: var(--lp-beacon-200);
 }
 
 .btn-ghost {
@@ -744,23 +873,37 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--brand);
 }
 
-/* ------------------------------------------------------------------ Above-Water Hero & Waterline Seam */
+/* ------------------------------------------------------------------ Above-Water Hero & Signature Waterline */
 
 .hero-air {
   background: var(--air);
-  padding: 80px 0 64px;
+  padding: 72px 0 60px;
 }
 
 .hero-home {
-  padding: 84px 0 0;
+  padding: 64px 0 0;
 }
 
-.hero-home-grid {
+.hero-home-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.hero-top-row {
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 48px;
+}
+
+.hero-intro-col {
+  flex: 1;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .hero-copy-col {
@@ -771,39 +914,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   gap: 20px;
 }
 
-.hero-home .hero-copy-col {
-  padding-bottom: 64px;
-}
-
-.hero-mark-col {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* 64x64 viewBox: y = 32 is exactly 50% height (110px of 220px).
-   Negative bottom margin anchors y = 32 flush on `.waterline-rule`. */
-.hero-waterline-mark {
-  position: relative;
-  z-index: 5;
-  width: 220px;
-  height: 220px;
-  margin-bottom: -110px;
-  pointer-events: none;
-}
-
-.hero-mark-svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.hero-mark-upper {
-  fill: var(--mark-upper);
-}
-
-.hero-mark-reflection {
-  fill: var(--lp-lake-300);
+.hero-waterline-title {
+  padding-bottom: 4px;
 }
 
 .waterline-rule {
@@ -828,6 +940,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   --brand: var(--lp-lake-300);
   --brand-hover: var(--lp-lake-200);
   --on-brand: var(--lp-abyss);
+  --accent: var(--lp-beacon-300);
   --proved: var(--lp-proved-300);
   --proved-soft: var(--lp-proved-900);
   --trusted: var(--lp-trusted-300);
@@ -863,19 +976,38 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   border-bottom: 1px solid var(--lp-stone-800);
 }
 
-/* Leaves right 248px open in top shelf so hero reflection sits in calm water */
-.theorem-strip {
-  padding: 36px 256px 36px 0;
+.waterline-reflection-band {
+  padding: 0 0 32px;
   border-bottom: 1px solid var(--lp-stone-800);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.theorem-strip-code {
+.waterline-reflection-text {
+  font-family: var(--lp-font-display);
+  font-size: 68px;
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+  color: var(--lp-lake-300);
+  opacity: 0.72;
+  transform: scaleY(-0.82);
+  transform-origin: center;
+  -webkit-mask-image: url("/assets/brand/waterline-mask.svg");
+  mask-image: url("/assets/brand/waterline-mask.svg");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  pointer-events: none;
+  user-select: none;
+}
+
+.waterline-evidence-shelf {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
 
 .theorem-pre {
@@ -883,12 +1015,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 13.5px;
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--lp-foam);
 }
 
-.syn-kw { color: var(--lp-trusted-300); font-weight: 600; }
+.syn-kw { color: var(--lp-syn-keyword); font-weight: 600; }
 .syn-fn { color: var(--lp-foam); font-weight: 600; }
-.syn-ty { color: var(--lp-lake-300); }
+.syn-ty { color: var(--lp-syn-type); }
+.syn-num { color: var(--lp-syn-number); }
+.syn-tac { color: var(--lp-syn-tactic); font-weight: 600; }
 
 .theorem-strip-ev {
   display: flex;
@@ -940,7 +1075,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--lp-stone-800);
-  background: #081E20;
+  background: var(--lp-abyss);
 }
 
 .wb-pane-state {
@@ -1038,10 +1173,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--lp-stone-400);
 }
 
-.wb-code-line[data-tone="fault"] {
-  background: rgba(224, 56, 59, 0.14);
-  border-left-color: var(--lp-failed-300);
-  color: #FFDAD6;
+.wb-code-line[data-tone="focus"] {
+  background: rgba(240, 176, 84, 0.11);
+  border-left-color: var(--lp-beacon-300);
+  color: var(--lp-foam);
 }
 
 .wb-code-line[data-tone="guard"] {
@@ -1088,10 +1223,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--lp-foam);
-}
-
-.wb-total-num[data-violated="true"] {
-  color: var(--lp-failed-300);
 }
 
 .wb-total-target {
@@ -1659,7 +1790,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .specimen-vessel {
   border-radius: 10px;
   border: 1px solid var(--lp-stone-800);
-  background: #081E20;
+  background: var(--lp-abyss);
   overflow: hidden;
 }
 
@@ -1740,7 +1871,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   gap: 12px;
 }
 
-.amber-live-tag {
+.accent-live-tag {
   font-family: var(--lp-font-mono);
   font-size: 11.5px;
   font-weight: 600;
@@ -2130,6 +2261,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--brand);
 }
 
+.chapter-qed {
+  padding-top: 8px;
+  font-family: var(--lp-font-mono);
+  font-size: 15px;
+  color: var(--brand);
+}
+
 .docs-pager {
   display: flex;
   flex-direction: row;
@@ -2315,37 +2453,44 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   }
 }
 
+@media (max-width: 1080px) {
+  .display-hero,
+  .waterline-reflection-text {
+    font-size: 50px;
+  }
+}
+
 @media (max-width: 860px) {
   .topbar-inner { padding: 0 16px; gap: 12px; }
   .topbar-right { gap: 12px; }
   .nav-links { display: none; }
   .mobile-menu-btn { display: flex; }
 
-  .display-xl { font-size: 42px; }
+  .brand-primary-svg[data-variant="hero"] {
+    width: 127px;
+    height: 60px;
+  }
+  .brand-primary-svg[data-variant="docs"] {
+    width: 119px;
+    height: 56px;
+  }
+
+  .display-hero,
+  .waterline-reflection-text {
+    font-size: 36px;
+  }
+  .display-xl { font-size: 40px; }
   .display-lg { font-size: 30px; }
   .display-md { font-size: 24px; }
   .lead-editorial { font-size: 17px; }
 
-  .hero-air { padding: 52px 0 44px; }
-  .hero-home { padding: 52px 0 0; }
-  .hero-home-grid {
+  .hero-air { padding: 48px 0 40px; }
+  .hero-home { padding: 44px 0 0; }
+  .hero-home-stack { gap: 32px; }
+  .hero-top-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
-  }
-  .hero-home .hero-copy-col {
-    padding-bottom: 12px;
-  }
-  .hero-mark-col {
-    align-self: flex-end;
-  }
-  .hero-waterline-mark {
-    width: 120px;
-    height: 120px;
-    margin-bottom: -60px;
-  }
-  .theorem-strip {
-    padding: 68px 0 28px;
+    gap: 20px;
   }
 
   .editorial-section { padding: 56px 0; }
@@ -2396,6 +2541,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     max-width: 100%;
     padding: 24px 20px 56px;
   }
+
+  .workflow-strip {
+    padding: 36px 0 28px;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .wb-wallet-grid {
+    flex-direction: column;
+  }
+  .wb-tabs {
+    flex-wrap: wrap;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2418,10 +2575,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   flex: 1;
 }
 
-/* ------------------------------------------------------------------ 3-Step Adoption Workflow & Redesigned Checkout Simulator */
+/* ------------------------------------------------------------------ 3-Step Adoption Workflow & Checkout Simulator */
 
 .workflow-strip {
-  padding: 40px 256px 36px 0;
+  padding: 40px 0 36px;
   border-bottom: 1px solid var(--lp-stone-800);
   display: flex;
   flex-direction: row;
@@ -2516,14 +2673,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--lp-foam);
 }
 
-.wb-charged-num[data-ok="true"] {
-  color: var(--lp-proved-300);
-}
-
-.wb-charged-num[data-violated="true"] {
-  color: var(--lp-failed-300);
-}
-
 .wb-total-num {
   font-size: 36px;
 }
@@ -2551,20 +2700,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 16px;
   border-radius: 8px;
   border: 1px solid var(--lp-stone-800);
-  background: rgba(0, 24, 27, 0.72);
+  background: var(--lp-abyss);
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.wb-outcome-box[data-state="ok"] {
-  border-color: rgba(119, 213, 154, 0.45);
-  background: rgba(0, 40, 19, 0.45);
-}
-
-.wb-outcome-box[data-state="fault"] {
-  border-color: rgba(255, 160, 152, 0.55);
-  background: rgba(65, 7, 9, 0.55);
 }
 
 .wb-outcome-head {
@@ -2573,14 +2712,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-weight: 600;
   line-height: 1.35;
   color: var(--lp-foam);
-}
-
-.wb-outcome-box[data-state="fault"] .wb-outcome-head {
-  color: #FFDAD6;
-}
-
-.wb-outcome-box[data-state="ok"] .wb-outcome-head {
-  color: var(--lp-proved-300);
 }
 
 .wb-outcome-steps {
@@ -2639,18 +2770,4 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-size: 12px;
   font-weight: 600;
   color: var(--ink-muted);
-}
-
-@media (max-width: 860px) {
-  .workflow-strip {
-    padding: 72px 0 28px;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .wb-wallet-grid {
-    flex-direction: column;
-  }
-  .wb-tabs {
-    flex-wrap: wrap;
-  }
 }

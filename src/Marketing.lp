@@ -5,11 +5,14 @@ import Brand
 import Widgets
 set_option synthInstance.maxSize 4096
 /-!
-# `Site.Marketing`: Editorial Marketing Routes (`/`, `/why-lean`, `/ecosystem`, `/showcase`)
+# `Site.Marketing`: Official Brand Marketing Routes (`/`, `/why-lean`, `/ecosystem`, `/showcase`)
 
-Written for web and product developers who build with coding agents and do not need
-prior Lean experience. Every route uses one waterline transition from Mist (`#F8F6F3`)
-into Abyss (`#00181B`).
+Adopts the approved Lakeport v1 brand kit:
+- Primary `Lake / Port` logotype (`primaryLogo "hero"`) with >= 3.5u clear space
+- Primary tagline `"Apps your agents can prove."` standing on the Shallows waterline,
+  with its banded fading reflection resolving into the checked theorem + evidence status
+- Strict four-state evidence discipline (`● proved`, `◐ trusted`, `○ unknown`, `✕ failed`)
+  and honest platform/gate claims aligned to `docs/implementation/README.md`
 -/
 namespace Site.Marketing
 open LakeportStyle LakeportMdx Site Site.Brand Site.Widgets
@@ -24,25 +27,25 @@ abbrev V := StyledView UiEvent Nat
 def homePage (s : AppState) : V :=
   <main>
     <section class="hero-air hero-home">
-      <div class="container hero-home-grid">
-        <div class="hero-copy-col">
-          <h1 class="display-xl">
-            <span>{"Build apps with agents, "}</span>
-            <span class="brand-phrase">prove the rules that matter</span>
-          </h1>
-          <p class="lead-editorial">
-            Write familiar JSX-style .lp views and plain CSS. State your critical business rules in English, let your coding agent write the Lean logic and proofs, and let Lakeport catch broken edge cases before you ship. You do not need to know Lean to get started.
-          </p>
-          <div class="cta-row">
-            {primaryBtn "Start in 10 minutes" (Ev.nav "/docs/getting-started")}
-            {inlineLinkBtn "Do I need to know Lean? →" (Ev.nav "/why-lean")}
-            {inlineLinkBtn "Read the docs →" (Ev.nav "/docs/introduction")}
+      <div class="container hero-home-stack">
+        <div class="hero-top-row">
+          {primaryLogo "hero"}
+          <div class="hero-intro-col">
+            <p class="lead-editorial">
+              Write JSX-style .lp views and plain CSS. State critical checkout, sync, or API rules in English, let your coding agent write the Lean state logic and proof, and check every branch before it ships. You do not need to know Lean to build with Lakeport.
+            </p>
+            <div class="cta-row">
+              {primaryBtn "Start in 10 minutes" (Ev.nav "/docs/getting-started")}
+              {inlineLinkBtn "Do I need to know Lean? →" (Ev.nav "/why-lean")}
+              {inlineLinkBtn "Read the docs →" (Ev.nav "/docs/introduction")}
+            </div>
           </div>
         </div>
 
-        <div class="hero-mark-col">
-          {heroWaterlineMark}
-        </div>
+        <h1 class="display-hero hero-waterline-title">
+          <span>{"Apps your agents "}</span>
+          <span class="brand-inline">can prove.</span>
+        </h1>
       </div>
     </section>
 
@@ -50,6 +53,31 @@ def homePage (s : AppState) : V :=
 
     <section class="water-zone">
       <div class="container">
+        <div class="waterline-reflection-band">
+          <div class="waterline-reflection-text">Apps your agents can prove.</div>
+          <div class="waterline-evidence-shelf">
+            <div class="theorem-pre">
+              <span class="syn-kw">{"theorem "}</span>
+              <span class="syn-fn">lakeportFixed_never_overcharges</span>
+              <span>{" (net : "}</span>
+              <span class="syn-ty">NetworkRun</span>
+              <span>{") : (runCheckout .lakeportFixed net).chargedCents ≤ "}</span>
+              <span class="syn-num">2500</span>
+              <span>{" := "}</span>
+              <span class="syn-kw">by</span>
+              <span>{" "}</span>
+              <span class="syn-tac">cases</span>
+              <span>{" net <;> "}</span>
+              <span class="syn-tac">decide</span>
+            </div>
+            <div class="theorem-strip-ev">
+              {evidenceItem .proved "Site.Demo.Laws.lakeportFixed_never_overcharges, Lean core axioms only" false}
+              {evidenceItem .trusted "Lean 4.35 kernel, clang wasm32, and browser DOM" false}
+              {evidenceItem .unknown "Live user Wi-Fi and remote payment gateway" false}
+            </div>
+          </div>
+        </div>
+
         <div class="workflow-strip">
           <div class="workflow-step">
             <span class="workflow-num">Step 1</span>
@@ -67,7 +95,7 @@ def homePage (s : AppState) : V :=
           </div>
           <div class="workflow-step">
             <span class="workflow-num">Step 3</span>
-            <span class="workflow-title">Lakeport checks the agent</span>
+            <span class="workflow-title">Check it before it ships</span>
             <p class="workflow-desc">
               Your agent writes the state logic and Lean proof. If an edge case breaks your rule, the compiler rejects the build.
             </p>
@@ -77,7 +105,7 @@ def homePage (s : AppState) : V :=
         <div class="water-demo-head">
           <h2 class="display-lg">Watch Lakeport catch a double-charge bug</h2>
           <p class="water-lead">
-            Suppose you ask an agent to add auto-retry to a $25.00 checkout. Its unit tests pass on normal Wi-Fi, so a typical pull request looks ready to merge. Test flaky Wi-Fi below to see what happens in compiled WebAssembly.
+            Suppose you ask an agent to add auto-retry to a $25.00 checkout. Its unit test passes on normal Wi-Fi, so a typical pull request looks ready to merge. Test flaky Wi-Fi below to see what happens in compiled WebAssembly.
           </p>
         </div>
 
@@ -93,7 +121,7 @@ def homePage (s : AppState) : V :=
             Lakeport runs in your client app, while your server can be any Go, TypeScript, Python, Rust, or Rails service. A pattern we recommend is matching the contract in your client code against every API version still running in production.
           </p>
           <p class="body-editorial">
-            When you list active versions such as v1 and v2 in that contract, you can prove before a backend release that dependent clients handle both formats and keep new v2 buttons hidden until your server advertises them.
+            When you list active versions such as v1 and v2 in that union contract, you can check before a backend release that dependent clients decode both formats and keep new v2 buttons gated until your server advertises them.
           </p>
 
           <div class="compile-specimen">
@@ -120,7 +148,7 @@ def homePage (s : AppState) : V :=
           <div class="receipt-panel">
             <div class="receipt-head">
               <span class="widget-title">Three commands to adopt</span>
-              <span class="receipt-sub">Plus actual build output for this website</span>
+              <span class="receipt-sub">Plus actual build facts for lakeport.dev</span>
             </div>
             <div class="spec-rows">
               <div class="spec-row">
@@ -129,7 +157,7 @@ def homePage (s : AppState) : V :=
               </div>
               <div class="spec-row">
                 <span class="spec-key">lakeport dev</span>
-                <span class="spec-val">Runs a local dev server with hot reload and readable compiler feedback.</span>
+                <span class="spec-val">Runs a local dev server with automatic rebuilds and structured compiler feedback.</span>
               </div>
               <div class="spec-row">
                 <span class="spec-key">lakeport mcp</span>
@@ -137,11 +165,11 @@ def homePage (s : AppState) : V :=
               </div>
               <div class="spec-row">
                 <span class="spec-key">Proof runtime cost</span>
-                {evidenceItem .proved "0 bytes added to C or WebAssembly" false}
+                {evidenceItem .proved "0 bytes emitted in C or WebAssembly ([proof-only, 0 B C])" false}
               </div>
               <div class="spec-row">
                 <span class="spec-key">This site's bundle</span>
-                {evidenceItem .trusted "17 static HTML pages and 459 KB gzipped Wasm" false}
+                {evidenceItem .trusted "17 static HTML routes + compiled Lean WebAssembly" false}
               </div>
             </div>
           </div>
@@ -150,10 +178,10 @@ def homePage (s : AppState) : V :=
         <div class="editorial-col">
           <h2 class="display-lg">Easy to adopt, small on the wire</h2>
           <p class="body-editorial">
-            You do not need a rewrite or a specialized proof team. Start with normal screens and CSS, connect your coding agent through MCP, and add checked rules only where money, offline sync, or API versions can go wrong.
+            You do not need a rewrite or a proof background. Start with normal screens and CSS, connect your coding agent through MCP, and add checked rules only where money, offline state, or API versions can go wrong.
           </p>
           <p class="body-editorial">
-            At build time, Lakeport strips all proof code completely and drops unreferenced package functions, so your users download static HTML and one compact WebAssembly binary.
+            At build time, Lakeport strips all proof code completely and drops unreferenced package functions, so browsers download static HTML and one compact WebAssembly binary.
           </p>
           <div class="inline-links-row">
             {inlineLinkBtn "Try the live package & Markdown demo →" (Ev.nav "/ecosystem")}
@@ -165,7 +193,7 @@ def homePage (s : AppState) : V :=
 
     <section class="closing-section section-ruled">
       <div class="container closing-inner">
-        <h2 class="display-md">Try Lakeport on a small app today</h2>
+        <h2 class="display-md">Try Lakeport on a small web slice today</h2>
         <div class="cta-row">
           {primaryBtn "Start in 10 minutes" (Ev.nav "/docs/getting-started")}
           {inlineLinkBtn "Do I need to know Lean? →" (Ev.nav "/why-lean")}
@@ -251,7 +279,7 @@ def whyLeanPage : V :=
               </div>
             </div>
             <div class="wb-code-foot">
-              {evidenceItem .proved "Verified by lakeport check with 0 custom axioms" false}
+              {evidenceItem .proved "Site.Demo.Laws.lakeportFixed_never_overcharges, 0 custom axioms" false}
             </div>
           </div>
         </div>
@@ -284,7 +312,7 @@ def whyLeanPage : V :=
               <h2 class="display-sm">Proofs disappear completely at build time</h2>
             </div>
             <p class="body-editorial">
-              Lean keeps runtime data separate from proof checks. Every theorem is verified during compilation and stripped out before Lean generates C code for WebAssembly, macOS, Linux, iOS, or Android.
+              Lean keeps runtime data separate from proof checks. Every theorem is verified during compilation and stripped out before Lean generates C code for WebAssembly or native runtime targets.
             </p>
           </div>
         </div>
@@ -294,9 +322,9 @@ def whyLeanPage : V :=
     <section class="editorial-section section-ruled">
       <div class="container split-4-8">
         <div class="editorial-col">
-          <h2 class="display-md">Clear labels for what is proved and what is trusted</h2>
+          <h2 class="display-md">Four states, each with a shape and a word</h2>
           <p class="body-editorial">
-            No tool can prove that Wi-Fi will stay up or a browser has zero bugs. Lakeport keeps its claims honest by separating compiler-checked rules from the underlying runtime and network.
+            No tool can prove that Wi-Fi will stay up or a browser has zero bugs. Lakeport reports what was actually checked, lists what is trusted, and keeps incomplete gates visible instead of hiding them.
           </p>
           <div class="inline-links-row">
             {inlineLinkBtn "Pure core & proofs guide →" (Ev.nav "/docs/pure-core-and-proofs")}
@@ -306,20 +334,20 @@ def whyLeanPage : V :=
         <div class="editorial-col">
           <div class="spec-rows">
             <div class="spec-row">
-              <span class="spec-key">Business rules & codecs</span>
-              {evidenceItem .proved "Checkout lock rules, API codecs, URL round-trips, and MDX cache" false}
+              <span class="spec-key">Kernel-checked models</span>
+              {evidenceItem .proved "Checkout lock laws, v1/v2 wire codecs, URL round-trips, and MDX slugs" false}
             </div>
             <div class="spec-row">
-              <span class="spec-key">Compilers & browser</span>
-              {evidenceItem .trusted "Lean 4.35 kernel, clang wasm32, DOM renderer, and socket APIs" false}
+              <span class="spec-key">Assumed & inventoried</span>
+              {evidenceItem .trusted "Lean 4.35 kernel, clang wasm32, DOM renderer, and host browser APIs" false}
             </div>
             <div class="spec-row">
-              <span class="spec-key">Live environment</span>
-              {evidenceItem .unknown "User Wi-Fi drops, server uptime, and third-party API latency" false}
+              <span class="spec-key">Not established yet</span>
+              {evidenceItem .unknown "Live network drops, remote server uptime, and open native platform gates" false}
             </div>
             <div class="spec-row">
-              <span class="spec-key">Caught bugs</span>
-              {evidenceItem .failed "Broken drafts blocked at compile time, like stepBuggyAgentRetry" false}
+              <span class="spec-key">Gate did not pass</span>
+              {evidenceItem .failed "Broken drafts rejected at compile time, such as stepBuggyAgentRetry" false}
             </div>
           </div>
         </div>
@@ -348,7 +376,7 @@ def ecosystemPage (s : AppState) : V :=
           <div class="mdx-bar-light">
             <div class="mdx-bar-left">
               <span class="mdx-bar-title">Live Markdown & MDX input (packages/lakeport-mdx)</span>
-              <span class="amber-live-tag">● Parses on every keystroke</span>
+              <span class="accent-live-tag">Parses on every keystroke</span>
             </div>
             <div class="seg-group">
               <button class="seg-btn" data-active={s.sandboxPreset != "contract"} onClick={Ev.sandboxPreset "notes"}>
@@ -381,7 +409,7 @@ def ecosystemPage (s : AppState) : V :=
               {toString parsedSandbox.blocks.length ++ " blocks and " ++ toString parsedSandbox.toc.length ++ " headings parsed in WebAssembly"}
             </span>
           </div>
-          {evidenceItem .proved "Heading anchors match safe URL characters (SafeSlug)" false}
+          {evidenceItem .proved "LakeportMdx.Laws.slugify_safe, heading anchors match [a-z0-9-]" false}
         </div>
 
         <div class="mdx-water-surface">
@@ -395,7 +423,7 @@ def ecosystemPage (s : AppState) : V :=
         <div class="editorial-col">
           <h2 class="display-lg">Unused package code drops out</h2>
           <p class="body-editorial">
-            When you add a package for one helper or parser, you should not pay for the rest of the library. Toggle optional packages on the right to see how proof stripping and dead-code removal affect bundle size alongside this site's 459 KB gzipped WebAssembly binary.
+            When you add a package for one helper or parser, you should not pay for the rest of the library. Toggle optional packages on the right to see how proof stripping and dead-code removal affect bundle size alongside this site's WebAssembly binary.
           </p>
           <div class="inline-links-row">
             {inlineLinkBtn "Packages & bundle size chapter →" (Ev.nav "/docs/reservoir-and-bundle-size")}
@@ -421,7 +449,7 @@ def ecosystemPage (s : AppState) : V :=
               Client-side API contract covering active v1 and v2 formats, capability response parsing, and client feature gating before a request hits the socket.
             </p>
             <div class="module-ev-col">
-              {evidenceItem .proved "16 checked rules, 0 sorryAx" false}
+              {evidenceItem .proved "16 theorems, 0 sorryAx" false}
             </div>
           </div>
 
@@ -431,10 +459,10 @@ def ecosystemPage (s : AppState) : V :=
               <span class="module-path">packages/lakeport-mdx/</span>
             </div>
             <p class="module-desc">
-              Markdown and MDX parser, frontmatter reader, code highlighter, and interactive widget embedder that powers all 12 manual chapters without JavaScript markdown dependencies.
+              Markdown and MDX parser, frontmatter reader, Lean syntax highlighter, and interactive widget embedder that powers all 12 manual chapters without JavaScript markdown dependencies.
             </p>
             <div class="module-ev-col">
-              {evidenceItem .proved "6 checked rules, 0 sorryAx" false}
+              {evidenceItem .proved "6 theorems, 0 sorryAx" false}
             </div>
           </div>
         </div>
@@ -450,11 +478,11 @@ def showcasePage : V :=
       <div class="container">
         <div class="packages-intro">
           <h1 class="display-xl">
-            <span>{"Real apps you can read "}</span>
-            <span class="brand-phrase">and run locally</span>
+            <span>{"Real examples you can read "}</span>
+            <span class="brand-phrase">and check locally</span>
           </h1>
           <p class="lead-editorial">
-            Explore working projects in the Lakeport workspace to see how .lp JSX views, regular CSS, offline queues, and agent-maintained rules fit together.
+            Explore working codebases in the Lakeport workspace to see how .lp JSX views, standard CSS, client contracts, and agent-maintained Lean rules fit together, along with which platform gates remain open.
           </p>
         </div>
       </div>
@@ -466,12 +494,12 @@ def showcasePage : V :=
           <div class="case-row">
             <div class="case-meta-col">
               <h2 class="display-sm">lakeport.dev (this site)</h2>
-              <span class="case-fact">17 static HTML pages, 459 KB gzipped Wasm</span>
+              <span class="case-fact">17 static HTML pages + compiled Lean Wasm</span>
               <span class="case-fact">src/ and packages/lakeport-mdx/</span>
             </div>
             <div class="case-body-col">
               <p class="body-editorial">
-                We built both the marketing pages and the 12-chapter manual in .lp views, standard .css, and LakeportMdx. Every page pre-renders to static HTML at build time and attaches cleanly to one compiled WebAssembly binary in the browser.
+                Both these marketing pages and the 12-chapter manual are built in .lp views, standard .css, and LakeportMdx. Every route pre-renders to static HTML at build time and attaches to one compiled WebAssembly binary in the browser.
               </p>
               <div class="inline-links-row">
                 {inlineLinkBtn "Routing & SSG chapter →" (Ev.nav "/docs/routing-and-ssg")}
@@ -482,13 +510,13 @@ def showcasePage : V :=
 
           <div class="case-row">
             <div class="case-meta-col">
-              <h2 class="display-sm">Checkout & API rollout demos</h2>
-              <span class="case-fact">v1 and v2 client contract, 31 checked rules</span>
+              <h2 class="display-sm">Checkout & API rollout models</h2>
+              <span class="case-fact">v1/v2 union contract, 31 kernel-checked theorems</span>
               <span class="case-fact">shared/SiteContract/ and src/Demo/</span>
             </div>
             <div class="case-body-col">
               <p class="body-editorial">
-                This module powers the flaky Wi-Fi checkout simulator and the backend rollout timeline on the home page. You can compare the agent's buggy first draft against the checked version and inspect how client contracts protect open browser tabs during backend releases.
+                These pure Lean modules power the flaky-Wi-Fi checkout simulator and the backend rollout timeline on the home page. You can compare the agent's buggy first draft against the checked version and see how client contracts protect open browser tabs during backend releases.
               </p>
               <div class="inline-links-row">
                 {inlineLinkBtn "Try the checkout simulator →" (Ev.nav "/")}
@@ -499,13 +527,13 @@ def showcasePage : V :=
 
           <div class="case-row">
             <div class="case-meta-col">
-              <h2 class="display-sm">Workspace Board & Lakeport Chat</h2>
-              <span class="case-fact">Web, macOS, Linux, iOS, and Android</span>
+              <h2 class="display-sm">Workspace Board & runtime probes</h2>
+              <span class="case-fact">Web Wasm demo + bounded runtime probes</span>
               <span class="case-fact">examples/workspace-board and examples/lakeport-chat</span>
             </div>
             <div class="case-body-col">
               <p class="body-editorial">
-                In the main Lakeport repository, Workspace Board implements a multi-column Kanban app with drag-and-drop and SQLite offline queues, while Lakeport Chat reconciles optimistic local messages with streaming server replies across web and native shells.
+                In the main Lakeport repository, Workspace Board exercises a multi-column Kanban model over compiled Lean WebAssembly alongside bounded Android JNI and headless Windows/Linux runtime probes, while Lakeport Chat tests streaming transport contracts. Full six-platform UI framework support is not yet claimed.
               </p>
               <div class="inline-links-row">
                 {inlineLinkBtn "Effects & offline queues →" (Ev.nav "/docs/effects-and-offline")}
@@ -522,32 +550,36 @@ def showcasePage : V :=
     <section class="water-zone">
       <div class="container">
         <div class="water-ledger-head">
-          <h2 class="display-md">What is proved across these examples</h2>
+          <h2 class="display-md">Evidence ledger for this repository</h2>
           <p class="water-lead">
-            Every rule below is checked automatically during npm run check, with zero proof bytes shipped in the compiled app.
+            Every theorem below is checked during npm run check with Lean core axioms only (propext, Quot.sound) and zero proof bytes shipped in compiled C or WebAssembly.
           </p>
         </div>
 
         <div class="water-spec-rows">
           <div class="water-spec-row">
-            <span class="water-spec-key">URL routing & MDX cache</span>
-            {evidenceItem .proved "URL round-trips and cached Markdown refreshes (5 rules)" false}
+            <span class="water-spec-key">Site.Laws (routing & cache)</span>
+            {evidenceItem .proved "URL codec round-trips and cached MDX refresh identity (5 theorems)" false}
           </div>
           <div class="water-spec-row">
-            <span class="water-spec-key">Client API contract</span>
-            {evidenceItem .proved "v1/v2 wire round-trips and client capability checks (16 rules)" false}
+            <span class="water-spec-key">Site.Contract.Laws (wire)</span>
+            {evidenceItem .proved "v1/v2 wire round-trips and permitsEncodedFrame gates (16 theorems)" false}
           </div>
           <div class="water-spec-row">
-            <span class="water-spec-key">Flaky Wi-Fi checkout</span>
-            {evidenceItem .proved "No overcharging on any network run plus retry lock laws (15 rules)" false}
+            <span class="water-spec-key">Site.Demo.Laws (checkout)</span>
+            {evidenceItem .proved "lakeportFixed_never_overcharges and ledger conservation (15 theorems)" false}
           </div>
           <div class="water-spec-row">
-            <span class="water-spec-key">Markdown heading anchors</span>
-            {evidenceItem .proved "Safe URL anchor characters and table-of-contents sync (6 rules)" false}
+            <span class="water-spec-key">LakeportMdx.Laws (anchors)</span>
+            {evidenceItem .proved "slugify_safe and table-of-contents heading coherence (6 theorems)" false}
           </div>
           <div class="water-spec-row">
-            <span class="water-spec-key">Compilers & host shells</span>
-            {evidenceItem .trusted "Lean 4.35 kernel, clang wasm32/native, browser DOM, and native shells" false}
+            <span class="water-spec-key">Toolchain & host browser</span>
+            {evidenceItem .trusted "Lean 4.35 kernel, clang wasm32, browser DOM, and Cloudflare Worker shell" false}
+          </div>
+          <div class="water-spec-row">
+            <span class="water-spec-key">Framework platform gates</span>
+            {evidenceItem .unknown "Full native UI support (iOS, Android, macOS, Windows, Linux) and HMR" false}
           </div>
         </div>
 

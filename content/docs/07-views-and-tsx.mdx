@@ -13,7 +13,7 @@ Lakeport `.lp` files let you write familiar JSX markup directly inside Lean 4 mo
 
 ## Supported HTML and vector primitives
 
-Because a single `.lp` view can render to Web DOM, GTK4, CoreGraphics, Direct2D, UIKit, and Android Views, Lakeport focuses on a compact, well-specified set of semantic elements:
+Because `.lp` views are designed to target both Web DOM today and native host trees (GTK4, AppKit, Direct2D, UIKit, and Android Views) as platform gates close, Lakeport focuses on a compact, well-specified set of semantic elements:
 
 - **Layout and landmarks:** `div`, `span`, `header`, `section`, `main`, `aside`, `footer`, `nav`
 - **Typography:** `h1`, `h2`, `h3`, `p`

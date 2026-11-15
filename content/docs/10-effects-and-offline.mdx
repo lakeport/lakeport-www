@@ -13,7 +13,7 @@ A pure reducer cannot open sockets or read `localStorage` behind your back. Inst
 
 ## Built-in EffectReq commands
 
-`LakeportEffects` ships typed request and response constructors that work identically across Web and native shells:
+`LakeportEffects` defines typed request and response constructors shared between the Web host and in-development native adapters:
 
 - **HTTP & Streaming:** `.httpGet`, `.httpPost`, `.httpRequest` (custom verbs & headers), `.httpStream` (SSE / chunked responses), `.httpCancel`
 - **WebSockets:** `.wsConnect`, `.wsSend`, `.wsSendBytes`, `.wsClose`

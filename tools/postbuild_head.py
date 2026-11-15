@@ -2,9 +2,9 @@
 """Post-build SSG HTML & discovery enhancer for lakeport.dev.
 
 - Injects route-specific <title>, <meta name="description">, <link rel="canonical">,
-  OpenGraph tags, brand favicons, apple-touch-icon, and WOFF2 font preloads
+  OpenGraph tags, official brand favicons, apple-touch-icon, webmanifest, and WOFF2 preloads
 - Replaces inline module mount script + eager Wasm preload with CSP-clean /assets/entry.mjs
-- Marks decorative <svg data-lp-svg> nodes aria-hidden="true" focusable="false" (Safari Audit)
+- Marks decorative <svg data-lp-svg> and .waterline-reflection-text nodes aria-hidden="true"
 - Marks horizontal scroll containers (.codePre, .tableWrap, .wb-code-body) tabindex="0" (Firefox/axe)
 - Emits robots.txt, sitemap.xml, llms.txt, and .well-known/ard.json (Lighthouse 13 SEO + Agentic)
 """
@@ -20,33 +20,33 @@ from pathlib import Path
 DIST_WEB = Path(__file__).resolve().parent.parent / "dist" / "web"
 SITE_ORIGIN = "https://lakeport.dev"
 
-DEFAULT_TITLE = "Lakeport: Build apps with agents, prove the rules that matter"
+DEFAULT_TITLE = "Lakeport: Apps your agents can prove"
 DEFAULT_DESC = (
-    "Write JSX-style .lp views and CSS while your coding agent handles the state logic and proofs. "
-    "Compiles to WebAssembly and native apps without requiring you to know Lean."
+    "Write JSX-style .lp views and CSS while your coding agent writes the Lean state logic and proofs. "
+    "Check critical checkout, sync, and API rules before they ship to WebAssembly."
 )
 
 ROUTE_META: dict[str, tuple[str, str]] = {
     "/": (DEFAULT_TITLE, DEFAULT_DESC),
     "/why-lean": (
         "Why Lean under the hood? | Lakeport",
-        "You do not need to learn Lean to use Lakeport. Write .lp templates and CSS, state your rules in plain English, and let the compiler verify your coding agent's work.",
+        "You do not need to learn Lean to use Lakeport. Write .lp templates and CSS, state your rules in plain English, and let the compiler check your coding agent's work.",
     ),
     "/ecosystem": (
         "Packages & Live MDX Sandbox | Lakeport",
-        "Official Lakeport packages for routing, browser effects, CSS modules, and pure WebAssembly MDX parsing with zero npm dependency sprawl.",
+        "Official Lakeport packages for routing, browser effects, CSS modules, and pure WebAssembly MDX parsing with zero proof bytes shipped.",
     ),
     "/showcase": (
-        "Examples & Reference Apps | Lakeport",
-        "Inspect real Lakeport apps including double-charge checkout protection, multi-version client API contracts, and this 17-route static site.",
+        "Examples & Evidence Ledger | Lakeport",
+        "Inspect working Lakeport codebases including double-charge checkout protection, v1/v2 client API contracts, and recorded platform evidence.",
     ),
     "/docs": (
-        "Documentation Manual | Lakeport",
-        "Twelve short chapters covering .lp templates, CSS styling, coding-agent workflows with lakeport mcp, routing, browser effects, and versioned client contracts.",
+        "Check it before it ships | Lakeport Docs",
+        "Twelve practical chapters covering .lp templates, CSS styling, coding-agent workflows with lakeport mcp, routing, browser effects, and versioned client contracts.",
     ),
     "/docs/introduction": (
         "Introduction | Lakeport Docs",
-        "What Lakeport is, how coding agents handle the Lean state logic for you, and when compiler-checked business rules pay off.",
+        "What Lakeport is, how compiled Lean WebAssembly works today, and what current platform evidence records.",
     ),
     "/docs/installation": (
         "Installation | Lakeport Docs",
@@ -154,14 +154,14 @@ def emit_discovery_files() -> None:
     llms_lines = [
         "# Lakeport",
         "",
-        "> Lakeport is a UI framework for building web and native apps with AI coding agents. Developers write JSX-style `.lp` views and standard `.css`, describe critical business rules in plain English, and let the Lean 4 compiler check the agent's state logic before shipping.",
+        "> Apps your agents can prove. Lakeport is an application framework in Lean 4 where developers write JSX-style `.lp` views and standard `.css`, describe critical business rules in plain English, and check agent-written state logic before shipping to WebAssembly.",
         "",
         "## Overview",
         "",
         "- [Home](https://lakeport.dev/): Interactive $25 flaky-Wi-Fi checkout simulator showing how Lakeport catches retry bugs that unit tests miss.",
         "- [Why Lean?](https://lakeport.dev/why-lean): How regular web developers adopt Lakeport without learning theorem-prover syntax.",
         "- [Packages & Sandbox](https://lakeport.dev/ecosystem): Official Lakeport packages and a live WebAssembly Markdown/MDX sandbox.",
-        "- [Examples](https://lakeport.dev/showcase): Reference apps for checkout idempotency, multi-version client contracts, and static sites.",
+        "- [Examples](https://lakeport.dev/showcase): Working examples and recorded platform/proof evidence.",
         "- [Documentation Index](https://lakeport.dev/docs): Full 12-chapter manual.",
         "",
         "## Documentation Chapters",
@@ -180,8 +180,8 @@ def emit_discovery_files() -> None:
                 "identifier": "urn:air:lakeport.dev:docs:skills",
                 "displayName": "Lakeport Documentation and Agent Guide",
                 "description": (
-                    "Documentation for .lp JSX-style views, CSS styling, plain-English business rules, "
-                    "versioned client API contracts, and the lakeport mcp compiler tool server."
+                    "Apps your agents can prove: documentation for .lp JSX-style views, CSS styling, "
+                    "plain-English business rules, versioned client API contracts, and lakeport mcp."
                 ),
                 "type": 'text/markdown; profile="urn:air:agent-skills"',
                 "url": f"{SITE_ORIGIN}/llms.txt",
@@ -227,16 +227,21 @@ def main() -> None:
         head_links = "\n".join(
             [
                 f'  <link rel="canonical" href="{canonical}">',
-                '  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">',
-                '  <link rel="icon" href="/assets/brand/favicon.ico" sizes="32x32">',
-                '  <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/apple-touch-icon.png">',
+                '  <link rel="icon" href="/assets/brand/icon/favicon.svg" type="image/svg+xml">',
+                '  <link rel="icon" href="/assets/brand/icon/favicon.ico" sizes="32x32">',
+                '  <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/icon/apple-touch-icon.png">',
+                '  <link rel="manifest" href="/assets/brand/site.webmanifest">',
+                '  <meta name="theme-color" content="#F8F6F3" media="(prefers-color-scheme: light)">',
+                '  <meta name="theme-color" content="#00181B" media="(prefers-color-scheme: dark)">',
                 '  <link rel="preload" href="/assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>',
                 '  <link rel="preload" href="/assets/fonts/SchibstedGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>',
                 '  <meta property="og:type" content="website">',
                 f'  <meta property="og:url" content="{canonical}">',
                 f'  <meta property="og:title" content="{esc_title}">',
                 f'  <meta property="og:description" content="{esc_desc}">',
-                f'  <meta property="og:image" content="{SITE_ORIGIN}/assets/brand/og-default.png">',
+                f'  <meta property="og:image" content="{SITE_ORIGIN}/assets/brand/social/og-default.png">',
+                '  <meta property="og:image:width" content="1200">',
+                '  <meta property="og:image:height" content="630">',
                 '  <meta name="twitter:card" content="summary_large_image">',
             ]
         )
@@ -258,6 +263,10 @@ def main() -> None:
         )
         patched = SVG_OPEN_RE.sub('<svg aria-hidden="true" focusable="false"', patched)
         patched = SCROLLABLE_CLASS_RE.sub(add_tabindex, patched)
+        patched = patched.replace(
+            'class="waterline-reflection-text">',
+            'class="waterline-reflection-text" aria-hidden="true">',
+        )
         patched = patched.replace('class="docs-sidebar">', 'class="docs-sidebar" aria-label="Chapters">')
         patched = patched.replace('class="docs-toc">', 'class="docs-toc" aria-label="On this page">')
 

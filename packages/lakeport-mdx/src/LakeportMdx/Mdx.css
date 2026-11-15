@@ -1,6 +1,6 @@
 /* Scoped CSS module for `lakeport-mdx`.
  * Inherits typography and surface custom properties from the host application
- * with Lakeport stone/water fallbacks so Reservoir consumers work zero-config.
+ * (`brand/tokens/lakeport.css`) with Lakeport stone/water fallbacks.
  */
 
 .article {
@@ -11,7 +11,7 @@
   gap: 16px;
   color: var(--mdx-ink, #112424);
   font-size: 16px;
-  line-height: 1.68;
+  line-height: 1.6;
 }
 
 .h1 {
@@ -40,7 +40,7 @@
   font-size: 23px;
   line-height: 1.24;
   font-weight: 600;
-  letter-spacing: -0.022em;
+  letter-spacing: -0.025em;
   color: var(--mdx-strong, #112424);
 }
 
@@ -70,7 +70,8 @@
 .para {
   color: var(--mdx-ink, #112424);
   font-size: 16px;
-  line-height: 1.68;
+  line-height: 1.6;
+  max-width: 65ch;
 }
 
 .strongSpan {
@@ -126,6 +127,7 @@
   flex-direction: column;
   gap: 12px;
   padding-left: 8px;
+  max-width: 65ch;
 }
 
 .listRow {
@@ -148,7 +150,7 @@
   flex: 1;
   min-width: 0;
   color: var(--mdx-ink, #112424);
-  line-height: 1.66;
+  line-height: 1.6;
 }
 
 .codeCard {
@@ -156,7 +158,7 @@
   contain-intrinsic-size: auto 240px;
   display: flex;
   flex-direction: column;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--mdx-code-bg, #00181B);
   border: 1px solid var(--mdx-code-border, #293634);
@@ -228,9 +230,9 @@
   padding: 16px;
   overflow-x: auto;
   font-family: var(--mdx-mono, ui-monospace, Menlo, Consolas, monospace);
-  font-size: 13px;
-  line-height: 1.6;
-  color: #E1F5F2;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #EDEDEA;
 }
 
 .codePre:focus-visible {
@@ -240,18 +242,20 @@
 
 .codeLine {
   white-space: pre;
-  min-height: 20px;
+  min-height: 21px;
 }
 
-.tokPlain { color: #E1F5F2; }
-.tokKeyword { color: #91C1FE; font-weight: 500; }
-.tokType { color: #54D5CA; }
-.tokDecl { color: #E1F5F2; font-weight: 600; }
-.tokString { color: #97EDE4; }
-.tokComment { color: #9D9F9D; }
-.tokTag { color: #54D5CA; }
+/* Official Lakeport Lean syntax highlighting (`brand/tokens/lakeport.css`) */
+.tokPlain { color: #EDEDEA; }
+.tokKeyword { color: var(--lp-syn-keyword, #91C1FE); font-weight: 500; }
+.tokTactic { color: var(--lp-syn-tactic, #77D59A); }
+.tokType { color: var(--lp-syn-type, #54D5CA); }
+.tokDecl { color: var(--lp-syn-keyword, #91C1FE); font-weight: 600; }
+.tokString { color: var(--lp-syn-string, #F0B054); }
+.tokComment { color: var(--lp-syn-comment, #9D9F9D); font-style: italic; }
+.tokTag { color: var(--lp-syn-type, #54D5CA); }
 .tokAttr { color: #BDBEBC; }
-.tokNumber { color: #C3AFFE; }
+.tokNumber { color: var(--lp-syn-number, #C3AFFE); }
 
 .callout {
   display: flex;
@@ -261,6 +265,7 @@
   border-radius: 6px;
   border-left: 2px solid var(--mdx-accent, #06736A);
   background: var(--mdx-callout-bg, rgba(6, 115, 106, 0.06));
+  max-width: 65ch;
 }
 
 .callout[data-kind="tip"] {
@@ -295,7 +300,7 @@
   flex-direction: column;
   gap: 8px;
   font-size: 15px;
-  line-height: 1.62;
+  line-height: 1.6;
   color: var(--mdx-ink, #112424);
 }
 
@@ -303,6 +308,7 @@
   padding: 6px 0 6px 16px;
   border-left: 2px solid var(--mdx-rule-strong, #9D9F9D);
   color: var(--mdx-muted, #5F6562);
+  max-width: 65ch;
 }
 
 .tableWrap {
@@ -347,7 +353,7 @@
   min-width: 110px;
   padding: 8px 12px;
   font-size: 14px;
-  line-height: 1.52;
+  line-height: 1.55;
   color: var(--mdx-ink, #112424);
 }
 

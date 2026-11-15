@@ -59,6 +59,7 @@ if (fs.existsSync(domPath)) {
     "      if (/(?:codePre|tableWrap|wb-code-body)/.test(cls)) el.setAttribute('tabindex', '0');\n" +
     "      if (cls === 'docs-sidebar') el.setAttribute('aria-label', 'Chapters');\n" +
     "      else if (cls === 'docs-toc') el.setAttribute('aria-label', 'On this page');\n" +
+    "      else if (cls === 'waterline-reflection-text') el.setAttribute('aria-hidden', 'true');\n" +
     '    }';
   if (domSrc.includes(clsTarget)) {
     domSrc = domSrc.replace(clsTarget, clsReplace);

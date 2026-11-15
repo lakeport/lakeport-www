@@ -1,15 +1,15 @@
 import LakeportMdx
-import SiteContract.Versions
-import SiteContract.Api
+import SiteContract
+import Demo.Workbench
 import State
 import Events
 import Brand
 set_option synthInstance.maxSize 4096
 /-!
-# `Site.Widgets`: Live WebAssembly Checkout Simulator, Rollout Track & Docs Widgets
+# `Site.Widgets` : Shared Interactive Lakeport Wasm Components
 
-Pure `.lp` TSX components backed by `Site.Demo` and `Site.Contract`:
-- `workbenchVesselView`: Homepage flaky-Wi-Fi checkout simulator
+Exports both marketing-page vessels and MDX-embeddable widgets:
+- `workbenchVesselView`: Homepage `$25.00` flaky-Wi-Fi checkout simulator
 - `contractSimulatorView`: `<ContractSimulator />` embedded inside `04-versioned-contracts.mdx`
 - `rolloutTimelineView`: `<RolloutTimeline />` embedded on `/` and `05-frontend-first-releases.mdx`
 - `deadCodeExplorerView`: `<DeadCodeExplorer />` embedded on `/ecosystem` and `11-reservoir-and-bundle-size.mdx`
@@ -48,8 +48,8 @@ def primaryBtn (label : String) (ev : UiEvent) : V :=
     <span class="btn-label">{label}</span>
   </div>
 
-def amberBtn (label : String) (ev : UiEvent) : V :=
-  <div class="btn-amber">
+def accentBtn (label : String) (ev : UiEvent) : V :=
+  <div class="btn-accent">
     <button class="hit-overlay" onClick={ev}>{label}</button>
     <span class="btn-label">{label}</span>
   </div>
@@ -74,9 +74,9 @@ private def buggyDraftSourceView : V :=
     {codeLine "    { l with available := l.available - 2500,"}
     {codeLine "             held := l.held + 2500,"}
     {codeLine "             delivery := .inFlight \"pay_1\" 2500 }"}
-    {codeLine "  let afterTimeoutUnlocked := { afterSend with delivery := .idle }" "fault"}
-    {codeLine "  { afterTimeoutUnlocked with available := afterTimeoutUnlocked.available - 2500," "fault"}
-    {codeLine "                              delivery := .inFlight \"pay_2\" 2500 }" "fault"}
+    {codeLine "  let afterTimeoutUnlocked := { afterSend with delivery := .idle }" "focus"}
+    {codeLine "  { afterTimeoutUnlocked with available := afterTimeoutUnlocked.available - 2500," "focus"}
+    {codeLine "                              delivery := .inFlight \"pay_2\" 2500 }" "focus"}
   </div>
 
 private def checkedVersionSourceView : V :=
@@ -93,10 +93,6 @@ private def checkedVersionSourceView : V :=
 
 def workbenchVesselView (wb : WorkbenchState) : V :=
   let out := runCheckout wb.mode wb.netRun
-  let outcomeTone :=
-    if wb.netRun == .idle then "idle"
-    else if out.overcharged then "fault"
-    else "ok"
   <div class="wb-wrap">
     <div class="wb-vessel">
       <div class="wb-pane-code">
@@ -113,18 +109,18 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
 
         <p class="wb-explain">
           {if wb.mode == .agentDraft then
-            "You asked your coding agent to auto-retry a $25.00 checkout when Wi-Fi drops. Its unit test runs on a healthy connection and passes, so a normal CI pipeline turns green. On a real timeout, the highlighted retry block unlocks the payment early."
+            "You ask your coding agent to auto-retry a $25.00 checkout when Wi-Fi drops. Its unit test runs on a healthy connection and passes, so a normal CI pipeline turns green. On a real timeout, the highlighted retry block unlocks the payment early."
            else
-            "Lakeport's compiler rejected the first draft because unlocking an in-flight payment broke your no-double-charge rule. With that compiler error, the agent kept pay_1 locked as uncertain until the server confirms what happened."}
+            "Lakeport's compiler rejects the first draft because unlocking an in-flight payment breaks your no-double-charge rule. With that compiler error, the agent keeps pay_1 locked as uncertain until the server confirms what happened."}
         </p>
 
         {if wb.mode == .agentDraft then buggyDraftSourceView else checkedVersionSourceView}
 
         <div class="wb-code-foot">
           {if wb.mode == .agentDraft then
-            evidenceItem .failed "Rejected by lakeport check: retry path can bill $25.00 twice" false
+            evidenceItem .failed "lakeport check rejects stepBuggyAgentRetry: retry path can bill $25.00 twice" false
            else
-            evidenceItem .proved "Accepted by lakeport check: customer is billed at most $25.00" false}
+            evidenceItem .proved "lakeportFixed_never_overcharges, chargedCents ≤ 2500 across every NetworkRun" false}
         </div>
       </div>
 
@@ -138,15 +134,13 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
           <div class="wb-wallet-grid">
             <div class="wb-wallet-card">
               <span class="wb-wallet-label">Customer wallet</span>
-              <span class="wb-total-num" data-violated={out.overcharged}>{formatUsd out.walletCents}</span>
+              <span class="wb-total-num">{formatUsd out.walletCents}</span>
               <span class="wb-wallet-note">Started with $100.00</span>
             </div>
 
             <div class="wb-wallet-card">
               <span class="wb-wallet-label">Charged for $25.00 item</span>
-              <span class="wb-charged-num" data-violated={out.overcharged} data-ok={wb.netRun != .idle && !out.overcharged}>
-                {formatUsd out.chargedCents}
-              </span>
+              <span class="wb-charged-num">{formatUsd out.chargedCents}</span>
               <span class="wb-wallet-note">
                 {if wb.netRun == .idle then "Click a Wi-Fi test below"
                  else if out.overcharged then "Billed twice for one item"
@@ -156,7 +150,7 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
           </div>
 
           <div class="wb-primary-actions">
-            {amberBtn "Pay $25 on flaky Wi-Fi" (Ev.wbRun .flakyWifi)}
+            {accentBtn "Pay $25 on flaky Wi-Fi" (Ev.wbRun .flakyWifi)}
             <button class="wb-secondary-btn" data-active={wb.netRun == .normalWifi} onClick={Ev.wbRun .normalWifi}>
               Pay $25 on normal Wi-Fi
             </button>
@@ -165,7 +159,15 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
              else <span>{""}</span>}
           </div>
 
-          <div class="wb-outcome-box" data-state={outcomeTone}>
+          <div class="wb-outcome-box">
+            {if wb.netRun == .idle then
+              evidenceItem .unknown "Pick normal or flaky Wi-Fi to run the checkout model" false
+             else if out.overcharged then
+              evidenceItem .failed "Charged $50.00 on flaky Wi-Fi ($25.00 invariant violated)" false
+             else if wb.mode == .agentDraft then
+              evidenceItem .unknown "1 normal-Wi-Fi test passed; flaky Wi-Fi retry path remains unchecked" false
+             else
+              evidenceItem .proved "lakeportFixed_never_overcharges holds (0 custom axioms)" false}
             <p class="wb-outcome-head">{out.headline}</p>
             <div class="wb-outcome-steps">
               <p class="wb-outcome-step">{out.step1}</p>
@@ -205,16 +207,23 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
             </p>
           </div>
           <div class="wb-drawer-col">
-            <span class="wb-drawer-title">What your agent maintains in WorkbenchLaws.lean</span>
+            <span class="wb-drawer-title">Model: Site.Demo.Workbench, Axioms: Lean core only (0 sorryAx)</span>
             <div class="theorem-pre">
               <span class="syn-kw">{"theorem "}</span>
               <span class="syn-fn">lakeportFixed_never_overcharges</span>
-              <span>{" (net : NetworkRun) :
-  let out := runCheckout .lakeportFixed net
-  "}</span>
-              <span class="syn-ty">{"out.overcharged = false ∧ out.chargedCents ≤ 2500"}</span>
+              <span>{" (net : "}</span>
+              <span class="syn-ty">NetworkRun</span>
+              <span>{") :\n  let out := runCheckout .lakeportFixed net\n  "}</span>
+              <span class="syn-ty">{"out.overcharged = false ∧ out.chargedCents ≤ "}</span>
+              <span class="syn-num">2500</span>
+              <span>{" := "}</span>
+              <span class="syn-kw">by</span>
+              <span>{" "}</span>
+              <span class="syn-tac">cases</span>
+              <span>{" net <;> "}</span>
+              <span class="syn-tac">decide</span>
             </div>
-            {evidenceItem .proved "Checked across every NetworkRun with 0 custom axioms" false}
+            {evidenceItem .proved "Kernel-checked in src/Demo/WorkbenchLaws.lean, 0 custom axioms" false}
           </div>
         </div>
        else <span>{""}</span>}
@@ -261,9 +270,9 @@ def contractSimulatorView (sim : ContractSimState) : V :=
       <div class="spec-row">
         <span class="spec-key">permitsEncodedFrame</span>
         {if allowed then
-          evidenceItem .proved "true (frame permitted by client gate)"
+          evidenceItem .proved "true, permitted by Site.Contract.permitsEncodedFrame"
          else
-          evidenceItem .failed "false (blocked in client before socket write)"}
+          evidenceItem .failed "false, blocked in client before socket write"}
       </div>
     </div>
   </div>
@@ -342,7 +351,7 @@ def deadCodeExplorerView (d : DceState) : V :=
       </div>
       <div class="spec-row">
         <span class="spec-key">Estimated slice</span>
-        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB slice (full lakeport-www site: 459 KB gzipped)"}</span>
+        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB slice (full lakeport-www site: ~460 KB gzipped)"}</span>
       </div>
     </div>
   </div>
