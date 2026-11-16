@@ -92,6 +92,25 @@ private def flushText (revChars : List Char) (acc : List Inline) : List Inline :
   if revChars.isEmpty then acc
   else .text (String.ofList revChars.reverse) :: acc
 
+private def flushStrong (revChars : List Char) (acc : List Inline) : List Inline :=
+  if revChars.isEmpty then acc
+  else .strong (String.ofList revChars.reverse) :: acc
+
+private def splitBoldCodeAux : Nat → List Char → List Char → List Inline → List Inline
+  | 0, rem, textRev, acc =>
+    (flushStrong (rem.reverse ++ textRev) acc).reverse
+  | _ + 1, [], textRev, acc =>
+    (flushStrong textRev acc).reverse
+  | fuel + 1, '`' :: cs, textRev, acc =>
+    match findClosingSingle '`' cs with
+    | some (codeCs, rest) =>
+      let acc' := .code (String.ofList codeCs) :: flushStrong textRev acc
+      splitBoldCodeAux fuel rest [] acc'
+    | none =>
+      splitBoldCodeAux fuel cs ('`' :: textRev) acc
+  | fuel + 1, c :: cs, textRev, acc =>
+    splitBoldCodeAux fuel cs (c :: textRev) acc
+
 private def parseInlinesAux : Nat → List Char → List Char → List Inline → List Inline
   | 0, rem, textRev, acc =>
     (flushText (rem.reverse ++ textRev) acc).reverse
@@ -107,7 +126,8 @@ private def parseInlinesAux : Nat → List Char → List Char → List Inline �
   | fuel + 1, '*' :: '*' :: cs, textRev, acc =>
     match findClosingDouble '*' '*' cs with
     | some (boldCs, rest) =>
-      let acc' := .strong (String.ofList boldCs) :: flushText textRev acc
+      let boldSpans := splitBoldCodeAux (boldCs.length + 1) boldCs [] []
+      let acc' := boldSpans.reverse ++ flushText textRev acc
       parseInlinesAux fuel rest [] acc'
     | none =>
       parseInlinesAux fuel cs ('*' :: '*' :: textRev) acc

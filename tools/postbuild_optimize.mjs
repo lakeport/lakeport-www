@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Post-build runtime a11y/perf patcher & esbuild asset minifier for `dist/web`.
+ * Post-build runtime scroll/a11y/perf patcher & esbuild asset minifier for `dist/web`.
  *
- * 1. Yields to the browser event loop between `factory()`, `session.start()`,
- *    `session.navigate()`, and `session.attachRenderer()` inside `boot.mjs#mount`
- *    so Wasm hydration slices stay below 50ms on throttled mobile CPUs.
+ * 1. Scrolls viewport back to `(0, 0)` on forward SPA `pushState` navigations in `boot.mjs`
+ *    (preserving SSG hydration `replaceState` and browser Back/Forward `popstate`),
+ *    and yields to the browser event loop between `factory()`, `session.start()`,
+ *    `session.navigate()`, and `session.attachRenderer()` so Wasm hydration slices stay short.
  * 2. Marks dynamic decorative `<svg data-lp-svg>` elements `aria-hidden="true"`
  *    (Safari Web Inspector Audit) and horizontal scroll containers `tabindex="0"`
  *    (Firefox/axe `scrollable-region-focusable`) in `dom-renderer.mjs`.
@@ -29,10 +30,18 @@ function writeWithGz(filePath, content) {
   }
 }
 
-// 1. Patch boot.mjs mount() with micro-yields between phases
+// 1. Patch boot.mjs: scroll-to-top on forward pushState + micro-yields between mount phases
 const bootPath = path.join(distWeb, 'runtime/boot.mjs');
 if (fs.existsSync(bootPath)) {
   let bootSrc = fs.readFileSync(bootPath, 'utf8');
+
+  const scrollTarget = "      else win?.history?.pushState?.({ lpUrl: u }, '', u);";
+  const scrollReplace = "      else { win?.history?.pushState?.({ lpUrl: u }, '', u); win?.scrollTo?.(0, 0); }";
+  if (!bootSrc.includes(scrollTarget) && !bootSrc.includes(scrollReplace)) {
+    throw new Error('[postbuild_optimize] Expected syncHistory pushState line in boot.mjs');
+  }
+  bootSrc = bootSrc.replace(scrollTarget, scrollReplace);
+
   const bootTarget = '    await session.loadConfiguredPlugins();\n    const r = session.start();';
   const bootReplace =
     '    const lpYield = () => new Promise(res => setTimeout(res, 0));\n' +
@@ -45,8 +54,8 @@ if (fs.existsSync(bootPath)) {
       '        try { session.navigate(initUrl); } finally { syncingPop = false; }\n      }\n    }\n    if (ssgRoute !== null) {',
       '        try { session.navigate(initUrl); } finally { syncingPop = false; }\n        await lpYield();\n      }\n    }\n    if (ssgRoute !== null) {\n      await lpYield();'
     );
-    fs.writeFileSync(bootPath, bootSrc, 'utf8');
   }
+  fs.writeFileSync(bootPath, bootSrc, 'utf8');
 }
 
 // 2. Patch dom-renderer.mjs for decorative SVG aria-hidden + scrollable tabindex="0"
@@ -56,7 +65,7 @@ if (fs.existsSync(domPath)) {
   const clsTarget = "      if (cls) el.setAttribute('class', cls); else el.removeAttribute('class');\n    }";
   const clsReplace =
     "      if (cls) el.setAttribute('class', cls); else el.removeAttribute('class');\n" +
-    "      if (/(?:codePre|tableWrap|wb-code-body)/.test(cls)) el.setAttribute('tabindex', '0');\n" +
+    "      if (/(?:codePre|tableWrap|wb-code-body|sim-http-box)/.test(cls)) el.setAttribute('tabindex', '0');\n" +
     "      if (cls === 'docs-sidebar') el.setAttribute('aria-label', 'Chapters');\n" +
     "      else if (cls === 'docs-toc') el.setAttribute('aria-label', 'On this page');\n" +
     "      else if (cls === 'waterline-reflection-text') el.setAttribute('aria-hidden', 'true');\n" +
@@ -119,4 +128,4 @@ if (fs.existsSync(cssPath)) {
   writeWithGz(cssPath, outCss.code);
 }
 
-console.log(`[postbuild_optimize] Patched runtime a11y/yields and minified ${jsTargets.length + 1} bundles (saved ${(savedBytes / 1024).toFixed(1)} KB).`);
+console.log(`[postbuild_optimize] Patched scroll-reset/a11y/yields and minified ${jsTargets.length + 1} bundles (saved ${(savedBytes / 1024).toFixed(1)} KB).`);

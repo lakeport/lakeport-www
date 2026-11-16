@@ -23,7 +23,7 @@ SITE_ORIGIN = "https://lakeport.dev"
 DEFAULT_TITLE = "Lakeport: Apps your agents can prove"
 DEFAULT_DESC = (
     "Write JSX-style .lp views and CSS while your coding agent writes the Lean state logic and proofs. "
-    "Check critical checkout, sync, and API rules before they ship to WebAssembly."
+    "Check local-first state, checkout, and API rules before they ship to WebAssembly."
 )
 
 ROUTE_META: dict[str, tuple[str, str]] = {
@@ -38,15 +38,15 @@ ROUTE_META: dict[str, tuple[str, str]] = {
     ),
     "/showcase": (
         "Examples & Evidence Ledger | Lakeport",
-        "Inspect working Lakeport codebases including double-charge checkout protection, v1/v2 client API contracts, and recorded platform evidence.",
+        "Inspect working Lakeport codebases including double-charge checkout protection, frontend JSON API contracts, and recorded platform evidence.",
     ),
     "/docs": (
         "Check it before it ships | Lakeport Docs",
-        "Twelve practical chapters covering .lp templates, CSS styling, coding-agent workflows with lakeport mcp, routing, browser effects, and versioned client contracts.",
+        "Practical guides covering starter apps, local-first client patterns, frontend JSON schema unions, SDK modules, and how Lakeport's compiler and runtime are built.",
     ),
     "/docs/introduction": (
         "Introduction | Lakeport Docs",
-        "What Lakeport is, how compiled Lean WebAssembly works today, and what current platform evidence records.",
+        "Why Lakeport fits local-first and client-heavy apps, how compiled Lean WebAssembly works today, and what current platform evidence records.",
     ),
     "/docs/installation": (
         "Installation | Lakeport Docs",
@@ -54,43 +54,55 @@ ROUTE_META: dict[str, tuple[str, str]] = {
     ),
     "/docs/getting-started": (
         "Your First App | Lakeport Docs",
-        "Build a working Lakeport web app in ten minutes with JSX-style .lp views, plain CSS, and an agent-checked business rule.",
-    ),
-    "/docs/views-and-tsx": (
-        "Views & .lp Syntax | Lakeport Docs",
-        "Write familiar HTML-like .lp component templates with typed event handlers, conditional blocks, and SVG primitives.",
-    ),
-    "/docs/styling-and-lpcss": (
-        "Styling & CSS | Lakeport Docs",
-        "Style Lakeport apps with standard CSS custom properties, scoped package stylesheets, and compile-time class name checks.",
+        "Build a local-first sync queue step by step, watch a buggy retry fail a Lean theorem, fix the reducer, and ship verified WebAssembly.",
     ),
     "/docs/pure-core-and-proofs": (
-        "State & Plain-English Rules | Lakeport Docs",
-        "Keep state updates predictable and ask your coding agent to prove rules like no double-charges, with zero proof bytes in release bundles.",
-    ),
-    "/docs/routing-and-ssg": (
-        "Routing & Static Pre-Rendering | Lakeport Docs",
-        "Define URL routes that round-trip cleanly and pre-render instant static HTML pages that hydrate into WebAssembly.",
-    ),
-    "/docs/effects-and-offline": (
-        "Effects, Fetch & Offline | Lakeport Docs",
-        "Run HTTP requests, timers, clipboard actions, and storage through an explicit effect boundary that stays easy to test.",
+        "Client State & Proofs | Lakeport Docs",
+        "Model local-first state machines in pure Lean, catch agent bugs with zero-byte theorems, and understand what proofs can and cannot check.",
     ),
     "/docs/versioned-contracts": (
-        "Versioned Client Contracts | Lakeport Docs",
-        "Keep active v1 and v2 API contracts in your client so backend releases in Go, TypeScript, Python, or Rust do not break open tabs.",
+        "Frontend Schema Unions | Lakeport Docs",
+        "Decode active v1 and v2 JSON schemas in your frontend so Go, Node, Python, or Rust backend deploys do not break open tabs or Service Worker caches.",
     ),
     "/docs/frontend-first-releases": (
         "Frontend-First Rollouts | Lakeport Docs",
-        "Deploy multi-version Lakeport clients ahead of backend changes and enable new UI capabilities via server capability flags.",
+        "Ship dual-schema frontends ahead of backend changes, survive Service Worker cache overlap, and gate new write actions with optional capability headers.",
+    ),
+    "/docs/views-and-tsx": (
+        "SDK Map, Views & .lp TSX | Lakeport Docs",
+        "Discover Lakeport's built-in SDKs and plugins, write typed .lp views, and understand current button, hit-overlay, and gesture trade-offs.",
+    ),
+    "/docs/styling-and-lpcss": (
+        "Styling & CSS | Lakeport Docs",
+        "Style Lakeport apps with standard CSS custom properties, scoped package stylesheets, compile-time class checks, and native .lpcss bundles.",
+    ),
+    "/docs/routing-and-ssg": (
+        "Routing & Static Pre-Rendering | Lakeport Docs",
+        "Define URL routes with LawfulUrlCodec round-trip proofs, manage navigation state, and pre-render static HTML pages from WebAssembly.",
+    ),
+    "/docs/effects-and-offline": (
+        "Effects, JSON & Offline Sync | Lakeport Docs",
+        "Run HTTP, WebSocket, storage, JSON codecs, Service Worker caches, and idempotent offline outboxes across Lakeport's typed effect boundary.",
     ),
     "/docs/reservoir-and-bundle-size": (
         "Packages & Bundle Size | Lakeport Docs",
-        "Pull Lakeport packages from Reservoir and ship compact WebAssembly bundles without unused code.",
+        "Pull Lakeport packages from Reservoir, erase proofs to zero bytes, and audit reachable declarations with .ilean dead-code checks.",
     ),
     "/docs/cli-and-mcp": (
         "CLI & MCP Reference | Lakeport Docs",
         "Command reference for lakeport dev, check, build, test, doctor, and the lakeport mcp server for AI coding agents.",
+    ),
+    "/docs/architecture-overview": (
+        "Architecture Overview | Lakeport Docs",
+        "Map of Lakeport's 17 packages, auto-imported Lean SDKs, frozen 4-node ViewApi kernel, LP2 C seam, and platform host shells.",
+    ),
+    "/docs/compiler-and-runtime": (
+        "Compiler & LP2 Runtime | Lakeport Docs",
+        "How Lakeport lowers .lp JSX with 1:1 line maps, rewrites 32-bit Wasm literals, runs dual-buffer LP2 dispatch, and pre-renders SSG HTML.",
+    ),
+    "/docs/contributor-guide": (
+        "Code Quality & Contributor Guide | Lakeport Docs",
+        "A candid engineering look at what is strong in Lakeport's codebase, where the rough edges and tech debt live, and where contributors can help.",
     ),
 }
 
@@ -100,7 +112,7 @@ MOUNT_SCRIPT_RE = re.compile(
 )
 SVG_OPEN_RE = re.compile(r"<svg\b(?![^>]*\baria-hidden=)(?![^>]*\baria-label=)")
 SCROLLABLE_CLASS_RE = re.compile(
-    r'<(pre|div)\b([^>]*\bclass="[^"]*(?:codePre|tableWrap|wb-code-body)[^"]*"[^>]*)>'
+    r'<(pre|div)\b([^>]*\bclass="[^"]*(?:codePre|tableWrap|wb-code-body|sim-http-box)[^"]*"[^>]*)>'
 )
 
 
@@ -154,15 +166,15 @@ def emit_discovery_files() -> None:
     llms_lines = [
         "# Lakeport",
         "",
-        "> Apps your agents can prove. Lakeport is an application framework in Lean 4 where developers write JSX-style `.lp` views and standard `.css`, describe critical business rules in plain English, and check agent-written state logic before shipping to WebAssembly.",
+        "> Apps your agents can prove. Lakeport is a client application framework in Lean 4 where developers write JSX-style `.lp` views and standard `.css`, state local-first sync, checkout, or API rules in plain English, and check agent-written state logic before shipping to WebAssembly.",
         "",
         "## Overview",
         "",
-        "- [Home](https://lakeport.dev/): Interactive $25 flaky-Wi-Fi checkout simulator showing how Lakeport catches retry bugs that unit tests miss.",
+        "- [Home](https://lakeport.dev/): Interactive flaky-Wi-Fi checkout simulator showing how Lakeport catches retry bugs that unit tests miss.",
         "- [Why Lean?](https://lakeport.dev/why-lean): How regular web developers adopt Lakeport without learning theorem-prover syntax.",
         "- [Packages & Sandbox](https://lakeport.dev/ecosystem): Official Lakeport packages and a live WebAssembly Markdown/MDX sandbox.",
         "- [Examples](https://lakeport.dev/showcase): Working examples and recorded platform/proof evidence.",
-        "- [Documentation Index](https://lakeport.dev/docs): Full 12-chapter manual.",
+        "- [Documentation Index](https://lakeport.dev/docs): Complete developer and contributor manual.",
         "",
         "## Documentation Chapters",
         "",
@@ -178,17 +190,17 @@ def emit_discovery_files() -> None:
         "entries": [
             {
                 "identifier": "urn:air:lakeport.dev:docs:skills",
-                "displayName": "Lakeport Documentation and Agent Guide",
+                "displayName": "Lakeport Documentation and Contributor Guide",
                 "description": (
                     "Apps your agents can prove: documentation for .lp JSX-style views, CSS styling, "
-                    "plain-English business rules, versioned client API contracts, and lakeport mcp."
+                    "local-first state rules, frontend JSON schema unions, lakeport mcp, and compiler architecture."
                 ),
                 "type": 'text/markdown; profile="urn:air:agent-skills"',
                 "url": f"{SITE_ORIGIN}/llms.txt",
                 "representativeQueries": [
-                    "How do I build a Lakeport web app with an AI coding agent?",
-                    "How does lakeport mcp give coding agents structured compiler feedback?",
-                    "How do versioned client contracts keep older browser tabs working during backend deploys?",
+                    "How do I build a local-first Lakeport web app with an AI coding agent?",
+                    "How do frontend JSON schema unions keep open tabs and Service Worker caches working during backend deploys?",
+                    "How is Lakeport architected across its Lean compiler, LP2 C ABI, and host runtimes?",
                 ],
             }
         ]
@@ -235,6 +247,7 @@ def main() -> None:
                 '  <meta name="theme-color" content="#00181B" media="(prefers-color-scheme: dark)">',
                 '  <link rel="preload" href="/assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>',
                 '  <link rel="preload" href="/assets/fonts/SchibstedGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>',
+                *( ['  <link rel="preload" href="/assets/fonts/JetBrainsMono-Variable.woff2" as="font" type="font/woff2" crossorigin>'] if route.startswith('/docs/') else [] ),
                 '  <meta property="og:type" content="website">',
                 f'  <meta property="og:url" content="{canonical}">',
                 f'  <meta property="og:title" content="{esc_title}">',

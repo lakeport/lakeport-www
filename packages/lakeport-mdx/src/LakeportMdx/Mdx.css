@@ -154,8 +154,7 @@
 }
 
 .codeCard {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 240px;
+  contain: layout style;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
@@ -223,12 +222,15 @@
 }
 
 .codePre {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 100%;
   padding: 16px;
   overflow-x: auto;
+  background: var(--mdx-code-bg, #00181B);
   font-family: var(--mdx-mono, ui-monospace, Menlo, Consolas, monospace);
   font-size: 13.5px;
   line-height: 1.65;
@@ -312,8 +314,7 @@
 }
 
 .tableWrap {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 200px;
+  contain: layout style;
   overflow-x: auto;
   border-radius: 6px;
   border: 1px solid var(--mdx-rule, #DADBD8);
@@ -364,8 +365,6 @@
 }
 
 .widgetSlot {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
   margin-top: 8px;
   margin-bottom: 8px;
 }
