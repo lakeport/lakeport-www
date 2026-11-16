@@ -1,0 +1,56 @@
+---
+title: "Frontend-first rollouts and caching"
+summary: "Coordinate rolling backend deploys, long-lived browser tabs, Service Worker caches, and reducer-level write gates without downtime."
+section: "Recommended patterns"
+order: 6
+readingMinutes: 7
+updated: "2026-11-15"
+---
+
+# Frontend-first rollouts and caching
+
+Teams often assume that deploying their frontend and backend from the same CI pipeline means users run matching versions. On the web (and even more so on mobile or desktop), client and server deploys never switch over atomically:
+
+- **Rolling backend deploys:** Load balancers route consecutive requests from the same browser session to old and new server pods while containers drain.
+- **Open browser tabs:** Users keep productivity apps, dashboards, and checkouts open for days without reloading `index.html`.
+- **Service Worker caching:** Offline-capable web apps precache `app_lp2.wasm` and `bundle.css` (or serve HTML with `stale-while-revalidate`), meaning returning users boot the previously cached client bundle at least once before an updated Service Worker activates.
+- **Local-first offline outboxes:** Edits queued before lunch may replay hours later against a newly deployed backend.
+
+## Interactive rollout timeline
+
+Step through the four phases below to trace what your backend returns, what a Service Worker cached tab sees, and when new `v2` write actions open up:
+
+<RolloutTimeline />
+
+## Gate new write commands inside your reducer as well as JSX
+
+Hiding a button in a `.lp` view (`if s.canInstantRefund then <button ...>`) improves UX, yet a hidden button alone does not stop:
+
+- Keyboard shortcuts (`data-hotkey`) firing the same action constructor.
+- Queued local-first outbox commands replaying after a feature flag is turned back off during an incident.
+- Agent-written refactorings adding a second button calling the same event tag.
+
+Check server capability state directly inside your pure reducer before emitting the `EffectReq`:
+
+```lean title="Reducer-level write gate in src/State.lean"
+def requestInstantRefund (s : AppState) (orderId : String) : AppState × List EffectReq :=
+  if s.serverCapabilities.contains "instant-refund" then
+    let reqId := s.nextReqId
+    let url := "/api/orders/" ++ orderId ++ "/refund"
+    ({ s with nextReqId := reqId + 1, refundInFlight := true },
+     [.httpPost reqId url "application/json" "{}"])
+  else
+    ({ s with notice := some "Instant refund is not enabled on the server yet." }, [])
+```
+
+With that check in `requestInstantRefund`, flipping `X-Capabilities` (or a feature flag field) off on your backend during a rollback cleanly halts new `v2` writes without requiring an emergency frontend redeploy or Service Worker cache purge.
+
+## Pair Service Worker updates with versioned Wasm URLs
+
+When configuring a Service Worker or edge CDN (such as Cloudflare Workers static assets):
+
+1. Serve `index.html` and route SSG HTML pages with `Cache-Control: no-cache` (or short `stale-while-revalidate`) so fresh navigations discover new asset URLs promptly.
+2. Cache immutable font files (`.woff2`) aggressively, and version or revalidate `/wasm/app_lp2.wasm` + `/runtime/boot.mjs` together so `boot.mjs` and `app_lp2.wasm` never mismatch across `LP2` ABI versions.
+3. Keep retired backend JSON schemas in `src/Api/` until your Service Worker max-age / activation window has elapsed.
+
+Next, explore **Modules and capabilities** starting with [SDK map, views, and .lp TSX](/docs/views-and-tsx).

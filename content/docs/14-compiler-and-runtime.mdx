@@ -1,0 +1,48 @@
+---
+title: "Compiler pipeline and LP2 runtime"
+summary: "Step-by-step walkthrough of Build.lean, LpTsx lowering, 32-bit Wasm C rewrites, LP2 dual-buffer dispatch, LPST diffing, SSG, and HMR."
+section: "How Lakeport is built"
+order: 14
+readingMinutes: 10
+updated: "2026-11-15"
+---
+
+# Compiler pipeline and LP2 runtime
+
+When you run `lakeport check` or `lakeport build web --release`, orchestration starts in `packages/lakeport-cli/Lakeport/Cli/Build.lean`. This chapter walks through each compiler stage and the runtime `LP2` v4 frame loop so you can debug or extend any stage with confidence.
+
+## Seven-stage build pipeline
+
+<BuildPipelineDiagram />
+
+### Clever trick 1: 1:1 line-preserving .lp lowering (LpTsx.lean)
+
+If lowering `<div class="card hero">` allocated a fresh `List ClassName` on every call to `view`, rendering would churn heap memory. Yet if `LpTsx.lean` inserted top-level `private def _lp_ns_0 : NodeStyle := ...` lines at the top of the generated `.lean` file, every Lean type error below it would report shifted line numbers!
+
+`LpTsx.lean` (`2,146` lines) solves both problems at once: it hoists all static `_lp_ns_k : NodeStyle` definitions **onto the single final `import` line** (separated by semicolons), preserving exact 1:1 line numbers between `Foo.lp` and `Foo.lean` while keeping static styles zero-allocation per frame.
+
+### Clever trick 2: 32-bit wasm32 C literal rewrites and lean_string_data
+
+Lean 4 emits C code assuming 64-bit `size_t` in a few subtle places, while browser WebAssembly (`wasm32-unknown-emscripten`) uses 32-bit pointers and 32-bit boxed `lean_box` scalars (`31` value bits). Lakeport applies two targeted fixes before invoking `emcc`:
+
+1. **`WasmNatLit.lean` (`[2^31, 2^63)` literals):** On 64-bit hosts, Lean compiles `Nat` literals in `[2^31, 2^63)` as `lean_box(NULL)`, which truncates silently on 32-bit `wasm32`! `WasmNatLit.lean` rewrites those C tokens into `lean_cstr_to_nat("N")`, then runs an **exact textual inverse pass** to verify byte-for-byte that nothing outside those literals was altered.
+2. **`-Wl,--wrap=lean_string_data` (`cli_ffi.c` / Web linker):** In Lean 4.35's runtime headers on 32-bit targets, `lean_alloc_sarray` leaves `m_size == 0` when allocating `""` (`lean_mk_string_unchecked("", 0, 0)`), which shares bit representation with `lean_box_uint32(0)` and causes `lean_string_cstr("")` to read garbage memory. Wrapping `lean_string_data` intercepts that exact 32-bit edge case cleanly.
+
+## Runtime LP2 v4 dispatch and two-phase command release
+
+At runtime, the compiled Lean module links against `packages/lakeport-web/host/lp2_shim.c` (`643` LOC C11, `18` exported symbols) and talks to `packages/lakeport-cli/web-runtime/lp2-abi.mjs` + `boot.mjs`:
+
+<Lp2AbiDiagram />
+
+### Capacity-safe rollback and HEAPU8 growth safety
+
+- **Pure rollback on buffer overflow:** `lp2_shim.c` holds static buffers (`64 KiB` `g_input_buf`, `1 MiB` `g_pub_buf`, `1 MiB` `g_held_buf`). `StyledRoot.step` evaluates your reducer and view under `wideCaps` (`2 GiB - 1`) to measure exact serialized byte lengths; if the frame exceeds the caller's `(publicCap, heldCap)`, Lean **discards the new state purely** and returns `RejectX.capacity(needPub, needHeld)` so `boot.mjs` enlarges its cap budget and retries cleanly.
+- **Wasm memory growth safety:** Because `-sALLOW_MEMORY_GROWTH=1` detaches the underlying `ArrayBuffer` whenever Wasm grows linear memory during `lp2_dispatch`, `lp2-abi.mjs` re-reads `module.HEAPU8` *after* `lp2_dispatch` returns and verifies `lp2_output_status(token)` before and after copying output slices.
+- **Proved `O(N log N)` style trailer diff (`LpstWire.lean`):** Instead of resending unchanged CSS class lists and `data-*` attributes on every click, Lean sorts node style entries and emits only changed `NodeId` records (`diffFastWithIx`), proved bit-identical to the reference quadratic diff (`diffFastWithIx_eq_diff`).
+- **Two-phase command `ack`:** User events do not fire `fetch` or `localStorage` inside `lp2_dispatch`. Commands stage inside `g_held_buf` (`LPSN`) while the session enters `awaitAck`. Only after the frame installs does `#runPlumbing()` send `ack(gen, commit)`, releasing the `EffectReq` batch to the host.
+
+## How dev-server reload works today
+
+In `lakeport dev`, Lean state lives inside compiled Wasm linear memory with opaque Lean closures and constructors. Rather than serializing arbitrary Lean heap graphs across schema changes, `boot.mjs` currently records an **inbound action log** (`press`, `edit`, `navigate`) and replays that log into the newly compiled `.wasm` binary on hot reload (falling back to fresh `initial` state if an action tag changed).
+
+Next, read [Code quality and contributor guide](/docs/contributor-guide) for an unfiltered assessment of what is strong in the codebase today and where tech debt needs cleanup.

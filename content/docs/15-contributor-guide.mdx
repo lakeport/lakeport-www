@@ -1,0 +1,68 @@
+---
+title: "Code quality and contributor guide"
+summary: "A candid engineering review of Lakeport's codebase: what is solid, where the tech debt and landmines live, and where to contribute."
+section: "How Lakeport is built"
+order: 15
+readingMinutes: 10
+updated: "2026-11-15"
+---
+
+# Code quality and contributor guide
+
+When software is built fast with heavy coding-agent assistance, it is easy to end up with a system that passes smoke tests while hiding tangled internals. If you are considering contributing to Lakeport (or evaluating how trustworthy its implementation really is), you deserve a candid engineering answer to a blunt question: **is the code actually good, or is it just working?**
+
+The honest verdict: **the verified Lean kernel, codecs, SDK proofs, and Wasm C compiler passes are solid, well-tested engineering; the surrounding CLI build plumbing, `data-lp-*` view tunneling, and cross-platform host shells carry real prototype scaffolding and duplication that contributors should clean up.**
+
+## What is strong today (keep and build on)
+
+1. **Real `0 sorryAx` theorems on production code (`lakeport-core`, `lakeport-style`, `lakeport-effects`, `lakeport-router`, `lakeport-json`):** The proofs across the kernel and SDKs are not toy examples bolted on the side. `LpstWire.diffFastWithIx_eq_diff` proves the production `O(N log N)` binary style diff equals its specification; `WirePack` proves bijective escaping; `MemoCell` proves zero-stale-cache coherence; `LakeportJson` proves lossless decimal and round-trip laws without a single `Float`.
+2. **Defensive `wasm32` C compilation (`WasmNatLit.lean` & `lean_string_data`):** Diagnosing Lean 4.35's 64-bit `lean_box` truncation and 32-bit `m_size == 0` empty-string bug, and verifying `WasmNatLit` with an exact textual inverse pass on every C file, prevented subtle memory corruption bugs in WebAssembly.
+3. **1:1 line-preserving `.lp` lowering (`LpTsx.lean`):** Hoisting static `_lp_ns_k : NodeStyle` constants onto the final `import` line gives zero-allocation static styles while keeping compiler line numbers aligned with `.lp` source files.
+4. **Closed-schema native supply-chain checks (`NativeInputs.lean`):** Third-party native dependencies require explicit provenance, license allowlists, and SHA-256 verification before packaging.
+
+## Where the rough edges and tech debt live
+
+Contributors jumping into `packages/` should watch out for six concrete rough spots:
+
+### 1. The frozen ViewApi pinch point (<button>, gestures, and data-lp-* strings)
+
+Because `ViewApi` froze early at `.text`, `.button (label : String)`, `.input`, and `.group`, `LpTsx.lean` (`lines 765, 1065`) rejects `onClick` on non-`<button>` elements and forbids element children inside `<button>`. That forces every clickable card or icon button to use `.hit-overlay` CSS hacks, and leaves **zero touch swipe, pan/pinch, scroll, or focus/blur events** reaching Lean.
+
+Freezing `ViewApi` also forced `<svg>`, `<img>`, `<native-view>`, `<input disabled>`, `<RouterShell url>`, and FLIP animations to tunnel through untyped `(String × String)` `dataAttrs` in `NodeStyle`. As a result:
+
+- `dom-renderer.mjs` runs `root.querySelectorAll('[data-flip-id]')` and `getBoundingClientRect()` twice on **every** committed frame even when an app uses zero FLIP animations.
+- `boot.mjs` linearly scans the entire `StyleTable` on every commit just to locate `data-lp-url`.
+
+### 2. Four-way host engine duplication (~30k+ LOC)
+
+Because the `LP2` boundary sits below layout and style resolution, `Wire2` decoding, `LPST` style patching, `.lpcss` evaluation, and Flex/Grid layout were reimplemented separately in Web JS (`5.8k` LOC), Linux C11 (`15.9k` LOC in `lakeport-desktop/linux/`), Android Java, Apple Swift, and Windows C++. Subtle behavioral drift already exists between them (for example, Web sets `data-drag-over="true"` while Linux GTK sets `data-drop-over="true"`). Moving layout or shared wire/style state machines into C11 or Lean would cut tens of thousands of duplicated lines.
+
+### 3. Single-machine paths and doc SHA-256 pins in Toolchain.lean
+
+`packages/lakeport-cli/Lakeport/Cli/Toolchain.lean` currently hardcodes workstation paths (`/home/ubuntu/.elan/...`, `/home/ubuntu/emsdk/...`), internal SSH build hosts (`macos-vm`, `windows-dev`), and SHA-256 hashes of internal markdown specification files (`128..132` and `140-python-retirement-manifest.json`). Editing one character in those markdown docs breaks `lakeport doctor` until the hash literal in `Toolchain.lean` is updated, and external contributors cloning onto macOS or another Linux username hit path assumptions immediately.
+
+### 4. Raw C constructor slot mutations and singleton lp2_shim.c state
+
+- `ApkPackager.lean` and `DesktopPackager.lean` emit C wrappers that mutate `StyledApp` fields by raw constructor slot index (`lean_ctor_set(..., 13, ...)` and `14`), which will silently corrupt memory if `StyledApp`'s field order ever changes.
+- `lp2_shim.c` uses process-global static arrays (`g_input_buf`, `g_pub_buf`, `g_held_buf`, and a 2-slot `g_abandoned` array), limiting native hosts to one Lakeport instance per OS process.
+- Long-session Wasm heap retention gate `S3b-heap-live-160-equals-40` remains open in `docs/implementation/`.
+
+### 5. Silent 64 KB effect truncation and URL query stripping
+
+`boot.mjs` silently slices outbound/inbound `EffectResp` bodies to `64,000` bytes (`sliceUtf8(body, 64000)`) instead of surfacing a typed `.payloadTooLarge` error or auto-chunking across frames, and `LakeportRouter.Url.parseUrl` discards `?query` and `#hash` strings.
+
+### 6. Fixture fallbacks in native packagers
+
+When GTK4 headers or prebuilt iOS `.a` archives are missing on a build host, parts of the Linux and iOS packagers can fall back to compiling stub fixture binaries rather than failing loudly unless strict gate flags are passed.
+
+## High-impact starter projects for contributors
+
+| Area | Key files | Concrete improvement |
+| --- | --- | --- |
+| **Portable CLI discovery** | `packages/lakeport-cli/Lakeport/Cli/Toolchain.lean` | Replace `/home/ubuntu/...` and SSH host constants with `PATH` / `ELAN_HOME` / `EMSDK` env lookup and remove doc SHA-256 pins from `doctor`. |
+| **Pressable container & gesture design** | `packages/lakeport-core/`, `LpTsx.lean`, `dom-renderer.mjs` | Add a fifth `Pressable` / interactive container constructor (or structured gesture channel) to `ViewApi` and update kernel proofs so clickable cards and swipe gestures do not need `.hit-overlay`. |
+| **O(1) frame fast paths** | `packages/lakeport-cli/web-runtime/dom-renderer.mjs`, `boot.mjs` | Track `[data-flip-id]` and `lp-url` nodes incrementally when `LPST` diffs arrive instead of scanning the full DOM / `StyleTable` every commit. |
+| **Structured query/hash routing** | `packages/lakeport-router/src/LakeportRouter/Url.lean` | Extend `UrlCodec` and `LawfulUrlCodec` to preserve typed `?query` parameters and `#hash` anchors (enabling deep-linked heading scroll in docs). |
+| **Explicit >64 KB HTTP responses** | `packages/lakeport-effects/`, `web-runtime/boot.mjs` | Replace silent `64,000`-byte slicing with multi-frame chunking or an explicit `EffectError.responseTooLarge` constructor. |
+
+Every contribution that touches `lakeport-core`, `lakeport-style`, `lakeport-router`, `lakeport-effects`, or `lakeport-json` is checked by `lakeport check` (`0 sorryAx`), so you can refactor boldly knowing the Lean kernel will catch broken invariants immediately.

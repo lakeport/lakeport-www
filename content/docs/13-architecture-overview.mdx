@@ -1,0 +1,46 @@
+---
+title: "Architecture overview"
+summary: "How Lakeport's 17 packages divide responsibilities across the CLI compiler, Lean SDKs, frozen 4-node ViewApi kernel, LP2 C seam, and host shells."
+section: "How Lakeport is built"
+order: 13
+readingMinutes: 9
+updated: "2026-11-15"
+---
+
+# Architecture overview
+
+If you open the Lakeport repository (`packages/`), there are `17` packages written in Lean 4, C11, ESM JavaScript (`.mjs`), Java, Swift, and C++ (with zero TypeScript, Rust, or Kotlin). This chapter gives contributors a clear mental map of how those packages fit together, what principles govern the design, and why the core kernel boundary looks the way it does.
+
+## Four-tier system diagram
+
+<ArchLayersDiagram />
+
+## The 17 packages at a glance
+
+| Layer | Packages in `packages/` | Role in the system |
+| --- | --- | --- |
+| **1. Compiler & CLI (`1`)** | `lakeport-cli` | Native Lean 4 CLI (`~21.5k` LOC Lean + `1.7k` LOC `cli_ffi.c` + `5.8k` LOC `web-runtime/*.mjs`): `.lp` JSX lowerer, CSS parser/scoper, `.lpcss` emitter, wave compiler, `wasm32` C rewriter, SSG runner, and `lakeport mcp`. |
+| **2. Verified Kernel (`5`)** | `lakeport-core`, `lakeport-signals`, `lakeport-codec`, `lakeport-session`, `lakeport-web` | Minimal 4-constructor `ViewApi`, `Epoch`/`Ticket` admission (`34` theorems), fuel-bounded `Term` signals (`82+` theorems), `LPDT` v1 binary data codec, `Supervisor` session model, and `StyledRoot` + `lp2_shim.c` (`643` LOC C11). |
+| **3. Auto-Imported SDKs (`5`)** | `lakeport-style`, `lakeport-router`, `lakeport-effects`, `lakeport-json`, `lakeport-xml` | Prepended automatically to app builds by `Toolchain.lean`: `StyledView` (`15` HTML tags), `MemoCell`, `LPST` `O(N log N)` style diff, `LawfulUrlCodec`, `18` `EffectReq` commands, `Outbox`, and pure-Lean JSON/XML codecs. |
+| **4. Capability Plugins (`3`)** | `lakeport-plugin-transport`, `lakeport-plugin-media-device`, `lakeport-plugin-on-device-ai` | Optional typed `pluginInvoke` / `pluginSubscribe` bridges for SSE/multipart streaming, camera/BLE/location/reachability, and local model inference. |
+| **5. Native Host Shells (`3`)** | `lakeport-desktop`, `lakeport-android`, `lakeport-ios` | Imperative host renderers: Linux GTK4/PangoCairo (`15.9k` LOC C11), macOS AppKit Swift, Win32 Direct2D C++, Android JNI + Java `.lpcss`, and iOS UIKit Swift. |
+
+## Core design principles
+
+Four engineering rules explain most of what you see across `packages/`:
+
+1. **Pure deterministic core, imperative edges:** Application state, routing, caching (`MemoCell`), and styling trees execute as pure functions inside Lean with `Float` banned in runtime app modules so `wasm32` and 64-bit native runs stay bit-identical. All I/O (`fetch`, DOM mutation, timers, storage) lives outside Lean in the host shell.
+2. **Zero-cost compile-time proofs:** Verification lives in `Prop` fields and leaf `*Laws.lean` modules (`[proof-only, 0 B C]`). Proofs gate compilation and erase before C11 emission.
+3. **Narrow binary C ABI (`LP2` v4) instead of per-widget FFI:** Rather than binding hundreds of DOM or GTK functions via Lean `@[extern]` calls, Lean and the host communicate strictly by copying compact binary frames (`LPRQ`, `Reply2` + `LPST`, `LPSN`) across three static byte buffers in `lp2_shim.c`.
+4. **Line-preserving source lowering over macros:** `.lp` TSX files lower 1:1 per line into `.lean` files before Lean starts, keeping compiler errors fast and avoiding complex Lean macro tracebacks for frontend authors.
+
+## Why ViewApi and LP2 froze early (and what that cost)
+
+Early in Lakeport's development, `lakeport-core` froze `ViewApi` at **four constructors** (`.text`, `.button`, `.input`, `.group`) and froze the `643`-line `lp2_shim.c` C bridge so kernel proofs (`lakeport-core`, `lakeport-session`, `lakeport-web`) would have a rock-solid target while higher-level features grew above them.
+
+Understanding both sides of that decision makes the rest of the codebase click immediately:
+
+- **What freezing `ViewApi` bought:** Reconciliation, `Epoch`/`Ticket` command admission, pure capacity rollback (`RejectX.capacity`), and `LPST` style trailer equivalence (`diffFastWithIx_eq_diff`) are proved end to end with `0 sorryAx` and a tiny C trusted computing base.
+- **What freezing `ViewApi` cost:** Every richer UI concept added later (`<img>`, `<svg>`, `<textarea>`, disabled inputs, CSS classes, `--*` variables, `<RouterShell>` URLs, FLIP animations, and drag-and-drop) had to be **tunneled through `NodeStyle` and `(String × String)` `data-lp-*` attributes** inside the `LPST` binary trailer, and `<button>` remained the sole carrier of `onClick`.
+
+Next, read [Compiler pipeline and LP2 runtime](/docs/compiler-and-runtime) to trace a `.lp` file all the way to WebAssembly and DOM commits.

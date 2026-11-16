@@ -1,0 +1,69 @@
+---
+title: "Client state and plain-English proofs"
+summary: "Model local-first business logic in pure Lean reducers, avoid vacuous theorems with productive witnesses, and erase proofs to zero bytes."
+section: "Recommended patterns"
+order: 4
+readingMinutes: 8
+updated: "2026-11-15"
+---
+
+# Client state and plain-English proofs
+
+You do not get value from Lean by proving theorems about CSS padding or header links. Lakeport works best when you keep visual `.lp` templates lightweight and isolate stateful client business logic (local-first sync queues, optimistic mutations, undo/redo stacks, checkout locks, and schema decoders) inside pure `.lean` modules.
+
+## Separate domain transitions from host I/O
+
+In a typical TypeScript frontend, event handlers interleave state mutation with `await fetch(...)`, timers, and `localStorage` writes. Testing every race condition requires mocking half the browser.
+
+In Lakeport, your domain reducer is a pure function:
+
+```lean title="Pure local-first reducer signature"
+def step (state : SyncState) (action : SyncAction) : SyncState × List EffectReq
+```
+
+Given any `SyncState` and `SyncAction`, `step` computes the next `SyncState` and a plain data list of outbound `EffectReq` values (such as `.httpPost`, `.kvSet`, or `.sleepMs`). Because there are no hidden globals, `Float` rounding drift, or async callbacks inside `step`, Lean can reason directly about every reachable branch.
+
+## Prompting your coding agent for meaningful rules
+
+When working with Claude Code, Codex, or Cursor over `lakeport mcp`, state invariants in plain domain terms rather than Lean jargon:
+
+- *"Prove that retrying a timed-out payment never decreases available + held + settled cents, and never emits a second `POST /charge` while an earlier charge awaits confirmation."*
+- *"Prove that applying optimistic local edits and out-of-order server acknowledgements never drops an unacknowledged user edit from the outbox."*
+- *"Prove that clicking Back from any modal sheet or nested page strictly decreases navigation depth until reaching the root screen."*
+
+## Always pair safety theorems with a productive witness
+
+One classic trap when asking an AI coding agent for a safety proof is **vacuous satisfaction**: an agent can make *"never overcharges"* trivially true by breaking checkout so nobody is ever charged at all!
+
+Pair every safety invariant (`never_overcharges`) with at least one **productive witness** theorem showing the happy path actually completes work:
+
+```lean title="Safety invariant + productive witness in *Laws.lean"
+/- 1. Safety across all network runs (including mid-flight disconnects) -/
+theorem lakeportFixed_never_overcharges (net : NetworkRun) :
+    (runCheckout .lakeportFixed net).chargedCents ≤ 2500 := by
+  cases net <;> decide
+
+/- 2. Productive witness: a normal run actually settles $25.00 -/
+theorem lakeportFixed_settles_normal_wifi :
+    (runCheckout .lakeportFixed .normalWifi).chargedCents = 2500 := by
+  decide
+```
+
+With both theorems in `WorkbenchLaws.lean`, an agent cannot cheat either side: breaking the happy path fails `lakeportFixed_settles_normal_wifi`, and breaking the retry lock fails `lakeportFixed_never_overcharges`.
+
+## Leaf law modules compile to 0 runtime bytes
+
+Keep your `theorem` declarations in dedicated `*Laws.lean` leaf modules listed in `lakefile.toml` `roots` (imported by nothing in `App.lp`):
+
+1. `lakeport check` elaborates every `*Laws.lean` module through the Lean 4.35 kernel (`0 sorryAx`).
+2. During `lakeport build`, Lakeport detects that `*Laws.lean` contains zero runtime code reachable from `App.app`, logs `[proof-only, 0 B C]`, and skips C and WebAssembly code generation for those files completely.
+
+## What proofs establish (and what they never establish)
+
+A kernel-checked proof guarantees that your compiled pure Lean model satisfies the stated mathematical property (assuming the Lean 4.35 kernel and C/Wasm compiler). It does **not** prove:
+
+- That a third-party REST server honors its documented contract.
+- That `localStorage` will not be cleared by the user's browser.
+- That your `.css` layout looks right on a small viewport.
+
+Use proofs for high-consequence client state machines, and combine them with runtime schema validation at the HTTP boundary, covered next in [Frontend JSON schema unions](/docs/versioned-contracts).

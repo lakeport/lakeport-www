@@ -1,7 +1,7 @@
 ---
 title: "Routing, LawfulUrlCodec, and SSG"
-summary: "Parse and format URLs with a proved inverse codec, manage back-stacks purely, and pre-render static HTML from compiled Wasm."
-section: "Building interfaces"
+summary: "Model URLs with an inductive Route sum and a LawfulUrlCodec round-trip proof, manage back stacks purely, and pre-render static HTML."
+section: "Modules and capabilities"
 order: 9
 readingMinutes: 8
 updated: "2026-11-15"
@@ -9,11 +9,11 @@ updated: "2026-11-15"
 
 # Routing, LawfulUrlCodec, and SSG
 
-Broken internal links and mismatched client/server routes are completely avoidable when URLs are backed by an inductive type and a round-trip proof.
+While backend REST APIs speak standard JSON, URL path segments are one place where every app defines its own custom string parser and formatter. `LakeportRouter` backs your URL router with an inductive `Route` type and a small `LawfulUrlCodec` round-trip proof so internal links and pre-rendered SSG paths never drift out of sync.
 
-## 1. Define your Route sum and UrlCodec
+## 1. Define your Route type and LawfulUrlCodec
 
-Start in `src/Routes.lean` by listing every valid screen in your application as an inductive type:
+List every screen in your application as an inductive type in `src/Routes.lean`:
 
 ```lean title="src/Routes.lean"
 inductive SiteRoute where
@@ -26,9 +26,9 @@ inductive SiteRoute where
   deriving DecidableEq, Repr, Inhabited
 ```
 
-Next, implement `LakeportRouter.UrlCodec SiteRoute` by mapping between `SiteRoute` and URL path segments (`List String`), and prove `LawfulUrlCodec`:
+Implement `UrlCodec SiteRoute` by converting between `SiteRoute` and path segments (`List String`), then prove `LawfulUrlCodec` in `src/SiteLaws.lean`:
 
-```lean title="Proving URL round-trip Invertibility"
+```lean title="Round-trip URL codec and theorem"
 def routeCodec : UrlCodec SiteRoute where
   toSegments
     | .home => []
@@ -36,67 +36,52 @@ def routeCodec : UrlCodec SiteRoute where
     | .ecosystem => ["ecosystem"]
     | .showcase => ["showcase"]
     | .docsIndex => ["docs"]
-    | .docsPage s => ["docs", s.slug]
-  ofSegments
+    | .docsPage d => ["docs", d.slug]
+  fromSegments?
     | [] => some .home
     | ["why-lean"] => some .whyLean
     | ["ecosystem"] => some .ecosystem
     | ["showcase"] => some .showcase
     | ["docs"] => some .docsIndex
-    | ["docs", raw] => (DocSlug.parse? raw).map .docsPage
+    | ["docs", raw] => DocSlug.parse? raw |>.map .docsPage
     | _ => none
 
 instance : LawfulUrlCodec routeCodec where
-  ofSegments_toSegments := by
-    intro r
-    cases r with
-    | docsPage s => cases s <;> rfl
-    | _ => rfl
+  roundtrip r := by cases r <;> first | rfl | (rename_i d; cases d <;> rfl)
 ```
 
-That four-line `LawfulUrlCodec` instance guarantees that every `SiteRoute` formats to a canonical path that `routeCodec.parseUrl` parses right back to the exact same `SiteRoute`.
+If an agent adds a new `DocSlug` chapter or screen constructor and forgets `fromSegments?`, `lakeport check` stops immediately with the unhandled case.
 
-## 2. Pure navigation stacks and RouterShell
+## 2. Pure navigation state and RouterShell
 
-`LakeportRouter.RouterState Route` models root tabs, pushed screens, modal sheets, and mobile drawers in pure Lean, with deterministic back-button priority (`sheet -> drawer -> pushed stack`) and a proved decreasing termination measure (`stepBack_decreases`).
+`RouterState Route` models your root route, a push/pop back-stack, an optional modal sheet, and an optional side drawer as pure Lean values. Its companion theorem `RouterState.stepBack_decreases` proves that pressing Back closes open overlays first and pops the stack until reaching the root screen.
 
-Wrap your root view in `<RouterShell url={currentUrl} canBack={canBack}>`:
+Wrap your top-level `.lp` view in `<RouterShell>` so `boot.mjs` synchronizes `window.history`:
 
-```lp title="Wrapping the root view"
-<RouterShell url={routeCodec.formatPath s.router.activeRoute} canBack={s.router.canGoBack}>
-  <div class="site-shell">
-    {renderPage s}
-  </div>
-</RouterShell>
+```lp title="Synchronizing browser history in src/App.lp"
+def view (s : AppState) : V :=
+  let url := routePath s.router.activeRoute
+  <RouterShell url={url} canBack={s.router.canGoBack}>
+    <div class="site-shell" data-theme={s.theme.attr}>
+      {headerView s}
+      {routeBody s}
+      {footerView}
+    </div>
+  </RouterShell>
 ```
 
-On the web, `RouterShell` synchronizes `history.pushState` and `popstate` events cleanly with your Lean state. For mobile host shells, `canBack` also exposes an explicit boolean signal for back-gesture integration as native adapters land.
+Forward route transitions (`history.pushState`) reset scroll position to the top of the document, while browser Back/Forward (`popstate`) preserves native scroll restoration.
 
-## 3. Static site generation (SSG) and commit-0 hydration
+## 3. Static site generation (SSG) from compiled WebAssembly
 
-Marketing pages and documentation sites need instant first paint and clean HTML for search engines and `curl` readers. Enable SSG in `lakefile.toml`:
+When `[lakeport.web] mode = "ssg"` is configured in `lakefile.toml`, `lakeport build web --release` runs `ssg-prerender.mjs` in Node.js against your actual `app_lp2.wasm` binary for every URL in `ssgRoutes`:
 
-```toml title="lakefile.toml"
-[lakeport.web]
-mode = "ssg"
-ssgRoutes = [
-  "/",
-  "/why-lean",
-  "/ecosystem",
-  "/showcase",
-  "/docs",
-  "/docs/introduction"
-]
-```
+1. Node boots `app_lp2.wasm`, navigates to `/docs/versioned-contracts`, and serializes the resulting `ViewApi` + `LPST` frame into complete `dist/web/docs/versioned-contracts/index.html` with `data-lp-id` hydration attributes.
+2. In the browser, static HTML paints immediately before WebAssembly finishes downloading.
+3. When `boot.mjs` mounts on a matching `data-lp-ssg-route`, `DomRenderer.hydrate` binds to the existing DOM nodes in place without recreating elements or causing layout shift.
 
-During `lakeport build web --release`, Lakeport:
-
-1. Compiles your Lean application to `dist/web/app.wasm`.
-2. Boots `app.wasm` in Node for each route in `ssgRoutes`, sends `.router (.navigate route)`, and serializes the exact resulting view tree to `dist/web/<route>/index.html`.
-3. When a visitor loads the page in a browser, static HTML paints immediately before WebAssembly finishes streaming. Once `app.wasm` initializes at commit `0`, `dom-renderer.mjs` attaches to the existing DOM nodes in place with **zero node creations** and **zero layout shift**.
-
-<Callout kind="note" title="This site is pre-rendered with Lakeport SSG">
-Every page you are reading right now was pre-rendered at build time by executing `lakeport-www`'s compiled Lean WebAssembly binary across all 16 routes in `lakefile.toml`.
+<Callout kind="note" title="Current URL parser limitation (?query and #hash)">
+`LakeportRouter.Url.parseUrl` currently strips `?query` parameters and `#hash` fragments before passing path segments into `fromSegments?`. Apps that persist filter state in URLs should encode filter segments into the path (for example `/orders/status/open`) until structured query codecs land in `lakeport-router`.
 </Callout>
 
-Next, read [Host effects and offline resilience](/docs/effects-and-offline) to connect HTTP, WebSockets, local storage, and clipboard commands safely.
+Next, read [Effects, JSON, and offline sync](/docs/effects-and-offline).

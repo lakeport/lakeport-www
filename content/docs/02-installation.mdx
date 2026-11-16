@@ -1,78 +1,62 @@
 ---
-title: "Installation and setup"
-summary: "Install elan, verify the pinned Lean 4 toolchain and WebAssembly target, and run lakeport doctor."
+title: "Installation and project layout"
+summary: "Install the Lakeport CLI, verify compilers with lakeport doctor, wire lakeport mcp to your coding agent, and tour a clean src/ workspace."
 section: "Getting started"
 order: 2
-readingMinutes: 4
+readingMinutes: 5
 updated: "2026-11-15"
 ---
 
-# Installation and setup
+# Installation and project layout
 
-Lakeport ships as a single native CLI binary (`lakeport`) alongside three core Lean packages (`lakeport-style`, `lakeport-router`, and `lakeport-effects`). This page walks through installing the prerequisites on Linux and macOS and verifying that WebAssembly builds work on your machine.
+Lakeport compiles `.lp` views, `.css` stylesheets, and Lean 4 modules into static HTML and WebAssembly through one CLI binary: `lakeport`.
 
-## Prerequisites
+## 1. Verify your toolchain with lakeport doctor
 
-Before installing Lakeport, make sure you have:
+After placing `lakeport` on your `PATH`, run `lakeport doctor` to inspect the local tools used for type-checking and WebAssembly builds:
 
-- **Git** and **curl** for fetching toolchains and Reservoir packages.
-- **elan**, the Lean version manager, which automatically downloads the exact Lean 4 compiler pinned in a project's `lean-toolchain` file.
-- **Clang 16+** with the `wasm32` target enabled (standard in Homebrew LLVM on macOS and `clang` + `lld` packages on Ubuntu/Debian) plus `wasm-opt` from Binaryen for release builds.
-- **Node.js 20+** if you use static site generation (`mode = "ssg"`), because `lakeport build web` runs your compiled `.wasm` binary once at build time to pre-render every route into static HTML.
-
-## Step 1: Install elan
-
-If you do not already have `elan` installed, run the standard installer script and add `~/.elan/bin` to your `PATH`:
-
-```sh title="Terminal"
-curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
-export PATH="$HOME/.elan/bin:$PATH"
-```
-
-Verify that `lean` and `lake` respond:
-
-```sh title="Terminal"
-lean --version
-lake --version
-```
-
-## Step 2: Check your environment with lakeport doctor
-
-Clone or extract the Lakeport archive, put `packages/lakeport-cli/bin` on your `PATH`, and run `lakeport doctor`:
-
-```sh title="Terminal"
+```sh title="Check local build dependencies"
 lakeport doctor
 ```
 
-`lakeport doctor` inspects your local compilers, linkers, Binaryen optimizer, and platform SDKs, then prints a plain checklist showing which targets are ready to build right now. You only need the tools for the targets you actually compile: if Android Studio is not installed, `lakeport build web` and `lakeport build linux` still work normally.
+For web development and production SSG builds, `lakeport doctor` checks:
 
-<Callout kind="tip" title="Keep build scratch directories off /dev/shm">
-Lean and Clang write temporary object files during compilation. On Linux machines with small `/dev/shm` tmpfs mounts, set `TMPDIR` to a directory on your main disk (for example `export TMPDIR="$HOME/.cache/lakeport/tmp"`) so parallel builds never run out of memory-backed disk space.
-</Callout>
+- **Lean 4.35 (`elan` / `lean` / `lake`):** Type-checks reducers, `.lp` views, and `*Laws.lean` theorems, and emits C11 sources.
+- **Emscripten (`emcc`) & Binaryen (`wasm-opt`):** Links C11 runtime code with `-Oz -flto -Wl,--gc-sections` into compact `wasm32` binaries.
+- **Node.js (v20+):** Executes `app_lp2.wasm` at build time to pre-render static HTML pages for every route in `ssgRoutes`.
 
-## Step 3: Editor support
+If you only run `lakeport check` in CI or inside an agent loop, Emscripten is not invoked until `lakeport build web`.
 
-Lakeport uses `.lean` files for pure logic and proofs, `.lp` files for typed TSX views, and `.css` files for stylesheets.
+## 2. Connect your coding agent with lakeport mcp
 
-1. Install the official **Lean 4** extension in VS Code, Cursor, or Neovim (`lean4-mode` / `lean.nvim`) for live tactic state views on `.lean` files.
-2. Run `lakeport check` in watch mode or wire `lakeport mcp` into your editor agent so diagnostics on `.lp` and `.css` files map straight back to the exact line and column in your source file.
+Most teams use Lakeport alongside Claude Code, Codex, or Cursor. Registering `lakeport mcp` gives your agent structured compiler diagnostics (exact `.lp`, `.css`, and `.lean` file paths, 1-indexed lines, error codes, and open proof goals) instead of raw terminal text:
 
-## Project layout
-
-A newly initialized Lakeport repository is deliberately flat:
-
-```sh title="Directory layout"
-my-app/
-  lakefile.toml       # Project manifest, routes, and target settings
-  assets/
-    icon.svg          # Vector app icon used across web and native shells
-  shared/             # Optional leaf package for shared client/server contracts
-  src/
-    app.css           # Global design tokens and layout classes
-    Routes.lean       # Typed URL codec and LawfulUrlCodec proof
-    State.lean        # Pure state, actions, and step reducer
-    StateLaws.lean    # Proof-only module ([proof-only, 0 B C])
-    App.lp            # TSX views and StyledApp entry point
+```toml title="Example MCP configuration"
+[mcp_servers.lakeport]
+command = "lakeport"
+args = ["mcp"]
 ```
 
-Next, head to [Your first app](/docs/getting-started) to wire these pieces together and run your first build.
+Once connected, your agent can iterate on a reducer and its `*Laws.lean` proof automatically before handing the result back to you.
+
+## 3. Standard single-app directory layout
+
+A Lakeport web app needs only `lakefile.toml` and `src/`. You do **not** need a `shared/` workspace package unless you are publishing a reusable library across multiple Lean repositories:
+
+```text title="Typical Lakeport web repository"
+my-app/
+  lakefile.toml          # App manifest, CSS entry, and ssgRoutes list
+  src/
+    app.css              # Global design tokens and component rules
+    App.lp               # Root StyledApp mount, navigation chrome, and views
+    Outbox.lean          # Pure client state and step reducer
+    OutboxLaws.lean      # [proof-only, 0 B C] theorems checked on every build
+    Api/
+      Orders.lean        # Frontend JSON decoders for your Go/Node/Python API
+```
+
+<Callout kind="tip" title="Five SDKs are available automatically">
+Lakeport's build driver automatically imports `LakeportStyle`, `LakeportRouter`, `LakeportEffects`, `LakeportJson`, and `LakeportXml` into your project build graph, so you can open `LakeportJson` or `LakeportEffects` in any `.lean` or `.lp` module without extra `lakefile.toml` boilerplate.
+</Callout>
+
+Next, open [Your first verified app](/docs/getting-started) to build a local-first note outbox, trigger a real Lean proof failure on a buggy retry, and fix it.

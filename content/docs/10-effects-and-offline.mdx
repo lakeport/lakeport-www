@@ -1,50 +1,54 @@
 ---
-title: "Host effects and offline resilience"
-summary: "Issue typed HTTP, WebSocket, KV, and clipboard commands as data values, and reconcile mid-flight disconnects without double-sends."
-section: "Building interfaces"
+title: "Effects, JSON, and offline sync"
+summary: "Use Lakeport's 18 typed EffectReq commands, LakeportJson/Xml codecs, Service Worker caches, and idempotent offline outboxes."
+section: "Modules and capabilities"
 order: 10
-readingMinutes: 7
+readingMinutes: 8
 updated: "2026-11-15"
 ---
 
-# Host effects and offline resilience
+# Effects, JSON, and offline sync
 
-A pure reducer cannot open sockets or read `localStorage` behind your back. Instead, `step` returns a pair `(State × List EffectReq)`. Your reducer describes *what* side effect it wants to perform as an ordinary value, and the Lakeport host shell executes it asynchronously and delivers an `EffectResp` message back into `app.message`.
+Because your reducer is pure, side effects cross an explicit data boundary: `press`, `edit`, and `message` return `(State × List Term)` built from `LakeportEffects.EffectReq`. The host runtime executes each request asynchronously and feeds a typed `EffectResp` back into `app.message`.
 
-## Built-in EffectReq commands
+## All 18 built-in EffectReq operations
 
-`LakeportEffects` defines typed request and response constructors shared between the Web host and in-development native adapters:
+`LakeportEffects` provides `18` typed host commands grouped into five families:
 
-- **HTTP & Streaming:** `.httpGet`, `.httpPost`, `.httpRequest` (custom verbs & headers), `.httpStream` (SSE / chunked responses), `.httpCancel`
-- **WebSockets:** `.wsConnect`, `.wsSend`, `.wsSendBytes`, `.wsClose`
-- **Key-Value Persistence:** `.kvGet`, `.kvSet`, `.kvDelete` (`localStorage` on web, native preferences on desktop/mobile)
-- **UX & Clipboard:** `.clipboardWrite`, `.haptic` (`light`, `medium`, `heavy`, `success`, `warning`, `error`), `.sleepMs`
-- **Typed Native Plugins:** `.pluginInvoke`, `.pluginSubscribe`, `.pluginUnsubscribe`
+- **HTTP & Streaming (`5`):** `.httpGet`, `.httpPost`, `.httpRequest` (custom method + request headers), `.httpStream` (chunked / SSE delivery), `.httpCancel`
+- **WebSockets (`4`):** `.wsConnect`, `.wsSend`, `.wsSendBytes`, `.wsClose`
+- **Key-Value Storage (`3`):** `.kvGet`, `.kvSet`, `.kvDelete` (`localStorage` on web; native preferences on desktop and mobile shells)
+- **UX & Timers (`3`):** `.clipboardWrite`, `.haptic` (`light`, `medium`, `heavy`, `success`, `warning`, `error`), `.sleepMs`
+- **Capability Plugins (`3`):** `.pluginInvoke`, `.pluginSubscribe`, `.pluginUnsubscribe` (used by `@lakeport/transport`, `@lakeport/media-device`, and `@lakeport/on-device-ai`)
 
-For example, when you click **Copy** on any code snippet in these docs, our reducer emits a single value:
+Every command carries a caller-chosen `reqId : Nat` so your reducer can correlate responses, timeouts, and cancellations deterministically.
 
-```lean title="Copy button reducer branch"
-let req := EffectReq.clipboardWrite state.nextReqId snippetText
-({ state with copiedKey := key, nextReqId := state.nextReqId + 1 }, [req.toTerm])
-```
+## Parsing JSON and XML without Float drift
 
-Because `EffectReq.clipboardWrite` is plain data, unit tests and Lean theorems can assert on the exact list of emitted commands without mocking `navigator.clipboard`.
+`LakeportJson` and `LakeportXml` are pure Lean 4.35 SDKs with zero external C parser dependencies:
 
-## Surviving mid-flight disconnects without duplicate charges
+- **`LakeportJson`:** Uses exact decimal `JsonNumber` (`mantissa : Int`, `exponent : Nat`) rather than IEEE-754 `Float`, so parsing stays bit-identical across `wasm32` and 64-bit native targets. Includes `Json.parse`, `Json.stringify`, `ToJson` / `FromJson`, `j.fieldAs`, `j.fieldOpt`, streaming `JsonChunkParser`, and parallel `JsonTape` indexing.
+- **`LakeportXml`:** Provides total fuel-bounded XML lexing, element tree parsing, and attribute/entity escaping.
 
-Network drops expose a subtle distinction that naive retry loops get wrong:
+## Local-first Outbox and mid-flight disconnects
 
-- **Queued (`pending`):** The command is sitting in the client's local outbox and has *never* been written to a socket. Safe to send as soon as a connection opens (provided `permitsEncodedFrame` still passes).
-- **Uncertain (`uncertain`):** The command was written to a socket (`wsSend` or `httpPost`), and the connection dropped *before* the server returned an `ack` or `rejected` frame.
+Local-first apps persist user edits locally first (via `.kvSet`) and sync them in the background. Network drops expose a critical distinction that naive retry loops get wrong:
 
-Did the server commit the transaction right before the TCP connection died, or did the packet drop in the subway tunnel? **The client does not know.**
+1. **Definite server rejection (HTTP `4xx` / `422`):** The server never applied the mutation; mark the item rejected or ask the user to edit it.
+2. **Uncertain delivery (`.unknownOutcome`: socket drop, airplane mode, `502`/`504` timeout):** Your request bytes *may or may not* have reached the backend database before the connection died.
 
-If an agent writes a retry handler that blindly resets `inFlight := false` and re-sends with a fresh request ID, the server executes the debit twice. Instead, model `.uncertain` explicitly in your state (or use `LakeportEffects.Outbox`):
+`LakeportEffects.Outbox` models each queued entry with a stable client-generated idempotency key (`clientMutationId`). When an HTTP call fails with a network drop, transition that entry to `.unknownOutcome` and replay the **same** `clientMutationId` on reconnect rather than minting a brand-new mutation ID.
 
-1. Attach a stable client idempotency ID (`cid`) when the user initiates the command, before any network call.
-2. On socket close while `inFlight`, transition the entry to `.uncertain` rather than `.queued`.
-3. Reconcile against server state (or replay *with the original `cid`*) only after re-negotiating capabilities on reconnect.
+## Service Worker caching for offline Lakeport web apps
 
-You can test both the verified state machine and the buggy double-debit agent patch live in the Workbench on the [Lakeport homepage](/).
+To make a Lakeport web app boot offline, register a standard browser Service Worker alongside your `dist/web/` output:
 
-Next, read [Reservoir modules and bundle size](/docs/reservoir-and-bundle-size) to see how Lean strips unused library code and all proof terms out of your final `.wasm` binary.
+- **Precache core runtime assets:** Cache `/wasm/app_lp2.wasm`, `/wasm/app_lp2.js`, `/runtime/boot.mjs`, `/bundle.css`, and your `.woff2` fonts inside one versioned cache key (`lakeport-shell-vN`) so the JS shim and `.wasm` binary always upgrade together.
+- **Route HTML strategy:** Use `network-first` (falling back to cached SSG HTML when offline) or `stale-while-revalidate` for navigation requests so online users pick up new deployments promptly while offline users still boot immediately.
+- **Keep backend schema unions aligned with cache lifetime:** Remember that a user booting from a Service Worker cache runs yesterday's `.wasm` binary against today's server until the new Service Worker activates; see [Frontend JSON schema unions](/docs/versioned-contracts).
+
+<Callout kind="warning" title="64 KB ceiling on core EffectResp payloads">
+Because core `EffectResp` messages cross the fixed `64 KiB` `g_input_buf` `LP2` buffer using `LPDT` framing, `boot.mjs` currently caps individual `EffectResp` bodies at `64,000` bytes (`effectLimits = 65536`). Keep REST responses paginated below `64 KB`, or stream larger downloads in chunks via `.httpStream` / `@lakeport/transport`.
+</Callout>
+
+Next, read [Packages, Reservoir, and bundle size](/docs/reservoir-and-bundle-size).

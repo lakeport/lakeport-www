@@ -1,64 +1,59 @@
 ---
-title: "Introduction to Lakeport"
-summary: "What Lakeport is, how compiled Lean WebAssembly works today, and what current platform evidence records."
+title: "What Lakeport is (and is not)"
+summary: "Why Lakeport fits local-first and client-heavy apps, what you write day to day, and how the four parts of this manual fit together."
 section: "Getting started"
 order: 1
-readingMinutes: 5
+readingMinutes: 6
 updated: "2026-11-15"
 ---
 
-# Introduction to Lakeport
+# What Lakeport is (and is not)
 
-Lakeport is an application framework in development, written in Lean 4 for teams building with coding agents. You write your state, reducers, routing, wire codecs, views (`.lp` TSX), and stylesheets (`.css`) in one project. Compiled Lean WebAssembly (`wasm32`) powers browser apps and static sites today, including `lakeport.dev`, while native C host shells remain in active development.
+Lakeport is a client application framework built on Lean 4 and compiled to WebAssembly (with native desktop and mobile shells in active development). You write component views in JSX-style `.lp` files and styles in regular `.css` files, state your critical client rules in plain English, and let your coding agent maintain the Lean state logic and proofs beside them.
 
-If you have built apps with Elm, Solid, or React, the mental model will feel familiar right away. Your interface is a pure function of your state:
+You do not need prior Lean experience to adopt Lakeport, and you do not need Lean on your backend.
 
-```lean title="The Lakeport loop"
-State -> StyledView Event Field
-```
+## Where Lakeport pays off most: local-first and client-heavy apps
 
-When someone clicks a button or types into a text field, the host shell sends an event into your Lean reducer. The reducer computes the next state and a list of outbound effects (an HTTP call, a clipboard write, a WebSocket frame). Lakeport diffs the view tree and patches only the DOM nodes that changed.
+In a traditional server-rendered or thin CRUD web app, most business rules live on the backend inside database transactions. If a browser only renders forms and posts them to a server, proving theorems on the client buys very little.
 
-## Why Lean 4 for application code?
+Lakeport benefits **local-first** and client-state-heavy software more than almost any other frontend stack, because real business logic lives on the user's device:
 
-Most UI frameworks stop at type-checking props and JSON shapes. That catches typos, which helps in day-to-day work, yet it leaves the hardest bugs untouched: conservation of balances, offline retry ordering, stale server capabilities during a rolling deploy, and state transitions that violate an invariant five clicks deep.
+- **Offline sync queues and outboxes:** Edits accumulate while disconnected, replay across flaky connections, and reconcile when responses arrive out of order.
+- **Optimistic UI and collaborative state:** Local mutations apply immediately and must converge cleanly with server acknowledgements without duplicating or dropping items.
+- **Stateful checkouts and idempotent retries:** Client retry loops must keep in-flight payment or reservation tokens locked when Wi-Fi drops mid-request.
+- **Long-lived tabs and Service Worker caches:** Frontend bundles cached on a device continue talking to Go, Node, Python, or Rust backends while schemas evolve across deploys.
 
-Lean 4 is both a functional programming language (compiling to C with Perceus reference counting) and an interactive theorem prover. In Lakeport, those two halves live in the same file tree:
+Whenever bugs hide in state transitions rather than pixel alignment, Lean's exhaustive pattern matching and zero-byte compile-time theorems catch mistakes that happy-path unit tests miss.
 
-- **Your app is ordinary functional code.** You define structures, inductive sums, and `.lp` TSX components much like you would in TypeScript or Elm. You do not need to write a single proof to get a working app on screen.
-- **When a rule matters, you state it as a theorem.** Because your reducer is a pure function with no hidden mutation or ambient `IO`, Lean's kernel can verify properties about the exact `step` function your users execute in WebAssembly.
-- **Proofs cost zero bytes at runtime.** Every `Prop` and every `theorem` is erased before C and WebAssembly code generation. Modules that contain only theorems (`*Laws.lean`) compile to zero bytes of object code.
+## What you read and edit vs. what your agent writes
 
-<Callout kind="important" title="What proofs cover (and what they do not)">
-A Lean theorem proves a property of your pure model, wire codec, or reducer under explicit hypotheses and recorded axioms. It does not prove that a browser engine, operating system kernel, or remote server is bug-free. Good Lakeport code keeps the imperative host shell small and pushes real state decisions across the boundary into pure Lean.
+| Concern | File type | Who typically writes it | Runtime footprint |
+| --- | --- | --- | --- |
+| Component markup & layout | `src/*.lp` | You or your coding agent | Lowered to `StyledView` and compiled to Wasm |
+| Visual tokens & layout rules | `src/*.css` | You or your coding agent | Static `bundle.css` (and `.lpcss` for native shells) |
+| Client state, JSON decoders & reducers | `src/*.lean` | Your coding agent, guided in plain English | Compiled to C11 and `wasm32` |
+| Invariants & regression laws | `src/*Laws.lean` | Your coding agent via `lakeport mcp` | **0 bytes** (`[proof-only, 0 B C]`) |
+
+## Honest platform status
+
+Lakeport separates what is production-ready today from platform targets whose verification gates are still open:
+
+| Target | Current status | Notes |
+| --- | --- | --- |
+| **Web (SSG + Wasm SPA)** | Production-ready (`● proved` / `◐ trusted`) | Pre-rendered static HTML hydrating into a single `wasm32` binary (`app_lp2.wasm`) over the `LP2` v4 ABI. |
+| **Linux Desktop (GTK4 / PangoCairo)** | Experimental (`○ unknown` open gates) | Native C11 host rendering `.lpcss` flex/grid trees; full cross-platform UI gate still open. |
+| **Android, iOS, macOS, Windows** | Experimental (`○ unknown` open gates) | JNI Java, Swift UIKit/AppKit, and Win32 Direct2D adapters exist in `packages/`, with bounded runtime probes rather than closed UI gates. |
+
+<Callout kind="note" title="Four-state evidence discipline">
+Throughout Lakeport and this manual, every technical claim is labeled as **proved** (checked by the Lean 4.35 kernel with `0 sorryAx`), **trusted** (compiler, browser DOM, OS), **unknown** (open platform gates or live network conditions), or **failed** (a broken draft rejected by `lakeport check`).
 </Callout>
 
-## Why coding agents thrive in Lakeport
+## How this manual is organized
 
-If you pair-program with coding agents, you have probably noticed failure modes that unit tests miss. An agent fixes a flaky retry test by clearing a pending flag early, or adds a wildcard `_ => pure ()` branch to silence a compiler warning. All twenty test cases pass, and then a customer gets billed twice on spotty train Wi-Fi.
+1. **Getting started:** Install the CLI, connect `lakeport mcp`, and build a verified local-first outbox step by step.
+2. **Recommended patterns:** Structure pure client state, decode evolving backend JSON schemas without Lean on the server, and ship frontend-first releases across Service Worker caches.
+3. **Modules and capabilities:** Discover built-in SDKs (`lakeport-style`, `lakeport-router`, `lakeport-effects`, `lakeport-json`, `lakeport-xml`), capability plugins, CSS modules, routing, and dead-code stripping.
+4. **How Lakeport is built:** Inspect architecture diagrams, the `.lp` compiler and `LP2` runtime internals, and a candid code-quality guide for contributors.
 
-Lakeport turns business constraints into compile-time walls that an agent cannot talk its way past:
-
-1. **Exhaustive versioned contracts.** Edge handlers match every wire version without wildcard arms. An unimplemented case fails `lakeport check`.
-2. **Kernel-checked invariants.** If `escrow_conserves_cents` says `available + held + released = 10000` across every action, a buggy retry patch fails to compile until the invariant holds for *all* inputs, not merely the three inputs in a test file.
-3. **Banned escape hatches.** Release checks inspect the compiled Lean environment for `sorryAx` and custom axioms. An agent cannot stub out a hard proof obligation and declare victory.
-
-## Target architecture and recorded evidence
-
-Lakeport targets real platform primitives rather than a custom Skia canvas. We report recorded evidence separately from end-state scope, and no platform family claims a completed full-framework production gate (`G-P`) yet:
-
-| Target | Host shell | Recorded status |
-| --- | --- | --- |
-| Web (SPA + SSG) | Compiled `wasm32` + DOM renderer | Active primary route (`lakeport.dev`, static pre-rendering + Wasm hydration); full-framework `G-P` open |
-| Android | C / JNI + Android Views | Bounded JNI and emulator runtime probes executed; framework support not yet claimed |
-| macOS, Windows, Linux | C + AppKit / Direct2D / GTK4 | Bounded runtime and headless layout probes executed; native UI support gates open |
-| iOS | C + UIKit | Simulator and device cross-link probes verified; app execution and UI support pending |
-
-## How to read this manual
-
-If you are new to Lakeport, read the next four pages in order:
-
-- [Installation](/docs/installation) sets up the Lean 4 toolchain and `lakeport` CLI.
-- [Your first app](/docs/getting-started) builds a working counter and task list from scratch in ten minutes.
-- [Versioned union contracts](/docs/versioned-contracts) shows how to type the boundary between your client and server so old clients and new servers coexist peacefully.
-- [Frontend-first releases](/docs/frontend-first-releases) explains our deployment rule of thumb: ship the client with its capability gate closed, then roll out the backend.
+Continue to [Installation and setup](/docs/installation) to check your local toolchain.

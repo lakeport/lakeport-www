@@ -7,7 +7,7 @@
 
 **Apps your agents can prove.**
 
-Marketing website and 12-chapter engineering manual for **Lakeport** ([lakeport.dev](https://lakeport.dev)), built end to end in Lakeport (Lean 4, `.lp` TSX views, `.css` / `.lpcss` stylesheets, static site generation, and WebAssembly).
+Marketing website and 4-part engineering manual for **Lakeport** ([lakeport.dev](https://lakeport.dev)), built end to end in Lakeport (Lean 4, `.lp` TSX views, `.css` / `.lpcss` stylesheets, static site generation, and WebAssembly).
 
 ## Repository layout
 

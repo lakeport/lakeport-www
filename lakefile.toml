@@ -19,7 +19,7 @@ nodeCapacity = 65536
 
 [lakeport.web]
 title = "Lakeport: Apps your agents can prove."
-description = "Apps your agents can prove. Write JSX-style .lp views and CSS, state critical checkout or API rules in English, and ship verified WebAssembly without needing to know Lean."
+description = "Apps your agents can prove. Write JSX-style .lp views and CSS, state local-first sync, checkout, or API rules in English, and ship verified WebAssembly without needing to know Lean."
 mode = "ssg"
 themeColor = "#00181B"
 caps = { publicCap = 524288, heldCap = 262144 }
@@ -32,15 +32,18 @@ ssgRoutes = [
   "/docs/introduction",
   "/docs/installation",
   "/docs/getting-started",
+  "/docs/pure-core-and-proofs",
   "/docs/versioned-contracts",
   "/docs/frontend-first-releases",
-  "/docs/pure-core-and-proofs",
   "/docs/views-and-tsx",
   "/docs/styling-and-lpcss",
   "/docs/routing-and-ssg",
   "/docs/effects-and-offline",
   "/docs/reservoir-and-bundle-size",
-  "/docs/cli-and-mcp"
+  "/docs/cli-and-mcp",
+  "/docs/architecture-overview",
+  "/docs/compiler-and-runtime",
+  "/docs/contributor-guide"
 ]
 
 [[require]]

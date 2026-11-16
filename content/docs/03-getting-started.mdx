@@ -1,207 +1,280 @@
 ---
-title: "Your first app"
-summary: "Build a Release Checklist app from an empty folder, add a state invariant, and pre-render static HTML."
+title: "Your first verified app"
+summary: "Build a local-first sync outbox step by step, watch lakeport check catch a duplicate-sync retry bug, fix the reducer, and wire a .lp view."
 section: "Getting started"
 order: 3
-readingMinutes: 8
+readingMinutes: 10
 updated: "2026-11-15"
 ---
 
-# Your first app
+# Your first verified app
 
-The fastest way to learn Lakeport is to build a small working app and break it once on purpose. Over the next few minutes we will create a Release Checklist app with three pieces:
+Instead of pasting a finished template, let us build a small **local-first note outbox** step by step so you can see how Lakeport's pieces connect and how a Lean proof actually catches a bug in client logic.
 
-1. A pure state machine in `src/Checklist.lean`.
-2. A one-screen TSX interface in `src/App.lp` styled by `src/app.css`.
-3. A short theorem in `src/ChecklistLaws.lean` proving that checking items off never changes the total item count.
+## How a Lakeport app fits together
 
-## 1. Create the project manifest
+Every Lakeport screen follows a four-part loop:
 
-Create a new directory called `release-checklist` and write `lakefile.toml` at its root:
+1. **`State` (`structure`):** Plain immutable data held on the client (for example, offline notes waiting to sync and notes confirmed by the server).
+2. **`Action` (`inductive`):** Every user click, text edit, or network callback that can happen.
+3. **`step : State → Action → State`:** Pure client business logic updating state (and optionally returning `EffectReq` commands like `httpPost` or `kvSet`).
+4. **`view : State → StyledView` (`.lp`):** JSX-style markup rendering `State` and mapping buttons or inputs back to `Action` values.
+
+When you add a `*Laws.lean` file, Lean checks properties of `step` across **every** possible `State` and `Action` at compile time, then erases the proof file to `0` bytes before compiling WebAssembly.
+
+## Step 1: Create the project manifest
+
+Create a new directory `note-outbox/` with `lakefile.toml`:
 
 ```toml title="lakefile.toml"
-name = "release-checklist"
+name = "note-outbox"
 version = "0.1.0"
-defaultTargets = ["ReleaseChecklist"]
+defaultTargets = ["NoteOutbox"]
 
 [[lean_lib]]
-name = "ReleaseChecklist"
+name = "NoteOutbox"
 srcDir = "src"
-roots = ["App"]
+roots = ["App", "OutboxLaws"]
 
 [lakeport]
-bundleId = "dev.example.checklist"
-applicationId = "dev.example.checklist"
+bundleId = "dev.example.outbox"
+applicationId = "dev.example.outbox"
 entry = "App"
 app = "App.app"
 css = "src/app.css"
 outDir = "dist"
-nodeCapacity = 16384
 
 [lakeport.web]
-title = "Release Checklist"
+title = "Local-First Note Outbox"
 mode = "ssg"
-themeColor = "#0f172a"
 ssgRoutes = ["/"]
 ```
 
-Notice `entry = "App"` and `app = "App.app"`. That tells Lakeport to compile `src/App.lp` and mount the `StyledApp` value named `App.app`.
+Notice `roots = ["App", "OutboxLaws"]`: `App` is your runtime entry point, while `OutboxLaws` is a leaf proof module that `lakeport check` verifies on every build and strips from C/Wasm codegen.
 
-## 2. Model the state and reducer
+## Step 2: Write a first draft reducer with a subtle retry bug
 
-Create `src/Checklist.lean`. We keep all state transitions here in ordinary Lean so they are easy to read, test, and prove things about without touching any UI code.
+In a local-first app, users write notes offline or on spotty connections. Suppose we track three counts in `src/Outbox.lean`: `queued` notes on the device, `inFlight` (whether a note is currently being posted), and `synced` notes confirmed by the server.
 
-```lean title="src/Checklist.lean"
-namespace Checklist
+Here is a realistic first draft (similar to what a coding agent often writes on its first try) where a network timeout puts the in-flight note back into `queued` so the user can retry:
 
-structure Item where
-  id : Nat
-  label : String
-  done : Bool := false
+```lean title="src/Outbox.lean (first draft with a retry bug)"
+namespace Outbox
+
+inductive Flight where
+  | idle
+  | sending
   deriving DecidableEq, Repr, Inhabited
 
 structure Model where
-  items : List Item := [
-    { id := 1, label := "Ship frontend capability gate", done := true },
-    { id := 2, label := "Deploy dual-version server", done := false },
-    { id := 3, label := "Enable v2 capability flag", done := false }
-  ]
-  commit : Nat := 0
+  queued : Nat := 0
+  flight : Flight := .idle
+  synced : Nat := 0
   deriving DecidableEq, Repr, Inhabited
 
+def Model.totalNotes (m : Model) : Nat :=
+  m.queued + (if m.flight == .sending then 1 else 0) + m.synced
+
 inductive Action where
-  | toggle (id : Nat)
-  | resetAll
+  | addNote
+  | beginSync
+  | serverAck
+  | timeoutDrop
   deriving DecidableEq, Repr
 
-def toggleItem (target : Nat) (it : Item) : Item :=
-  if it.id == target then { it with done := !it.done } else it
+def step (m : Model) : Action → Model
+  | .addNote =>
+    { m with queued := m.queued + 1 }
+  | .beginSync =>
+    if m.flight == .idle && m.queued > 0 then
+      { m with queued := m.queued - 1, flight := .sending }
+    else m
+  | .serverAck =>
+    /- Bug: late HTTP 200 arrives after timeoutDrop already re-queued the note! -/
+    { m with flight := .idle, synced := m.synced + 1 }
+  | .timeoutDrop =>
+    if m.flight == .sending then
+      { m with queued := m.queued + 1, flight := .idle }
+    else m
 
-def step (m : Model) : Action -> Model
-  | .toggle id =>
-    { items := m.items.map (toggleItem id), commit := m.commit + 1 }
-  | .resetAll =>
-    { items := m.items.map (fun it => { it with done := false }), commit := m.commit + 1 }
-
-def completedCount (m : Model) : Nat :=
-  (m.items.filter (fun it => it.done)).length
-
-end Checklist
+end Outbox
 ```
 
-There are no hooks, observables, or mutable refs here. `step` takes a `Model` and an `Action` and returns the new `Model`.
+Can you spot the bug? Happy-path tests (`addNote -> beginSync -> serverAck`) pass. Yet if a slow mobile connection triggers `timeoutDrop` (moving the note back to `queued`) and the original HTTP request still reaches the server and delivers a late `serverAck`, `synced` increments anyway and duplicates the user's note!
 
-## 3. Write the view in .lp TSX
+## Step 3: State the conservation rule in OutboxLaws.lean
 
-Now create `src/App.lp`. A `.lp` file is a Lean module where JSX tags lower directly to `LakeportStyle.StyledView` calls. Every class name in `class="..."` is checked against `src/app.css` during `lakeport check`; if you misspell a class name, compilation fails with the exact line and column.
+Ask your coding agent (or write `src/OutboxLaws.lean` directly) to enforce a plain-English rule: **sync events (`beginSync`, `serverAck`, `timeoutDrop`) must never invent or lose notes; `totalNotes` may only change on `addNote`.**
+
+```lean title="src/OutboxLaws.lean"
+import Outbox
+
+namespace Outbox.Laws
+open Outbox
+
+theorem sync_actions_conserve_notes (m : Model) (a : Action)
+    (hSync : a ≠ .addNote) :
+    (step m a).totalNotes = m.totalNotes := by
+  cases a with
+  | addNote => contradiction
+  | beginSync =>
+    dsimp [step, Model.totalNotes]
+    split <;> omega
+  | serverAck =>
+    dsimp [step, Model.totalNotes]
+    cases m.flight <;> omega
+  | timeoutDrop =>
+    dsimp [step, Model.totalNotes]
+    split <;> omega
+
+end Outbox.Laws
+```
+
+Run `lakeport check`:
+
+```sh title="Compiler catches the late-ack duplication bug"
+$ lakeport check
+src/OutboxLaws.lean:16:22: error[lean]: omega could not prove the goal:
+  m : Model
+  hFlight : m.flight = Flight.idle
+  ⊢ m.queued + 0 + (m.synced + 1) = m.queued + 0 + m.synced
+```
+
+Look at that goal: Lean pinpointed the exact state (`m.flight = Flight.idle`) where `serverAck` added `1` to `m.synced` without a matching in-flight note!
+
+## Step 4: Fix the state machine and re-run lakeport check
+
+Instead of pretending a timed-out request never left the device, keep timed-out notes in `.awaitingConfirm` (with an idempotency key in a full app) and only accept `serverAck` when a note is actually `.sending` or `.awaitingConfirm`:
+
+```lean title="src/Outbox.lean (verified state machine)"
+namespace Outbox
+
+inductive Flight where
+  | idle
+  | sending
+  | awaitingConfirm
+  deriving DecidableEq, Repr, Inhabited
+
+def Flight.count : Flight → Nat
+  | .idle => 0
+  | .sending => 1
+  | .awaitingConfirm => 1
+
+structure Model where
+  queued : Nat := 0
+  flight : Flight := .idle
+  synced : Nat := 0
+  deriving DecidableEq, Repr, Inhabited
+
+def Model.totalNotes (m : Model) : Nat :=
+  m.queued + m.flight.count + m.synced
+
+inductive Action where
+  | addNote
+  | beginSync
+  | serverAck
+  | timeoutDrop
+  deriving DecidableEq, Repr
+
+def step (m : Model) : Action → Model
+  | .addNote =>
+    { m with queued := m.queued + 1 }
+  | .beginSync =>
+    if m.flight == .idle && m.queued > 0 then
+      { m with queued := m.queued - 1, flight := .sending }
+    else m
+  | .serverAck =>
+    match m.flight with
+    | .sending | .awaitingConfirm =>
+      { m with flight := .idle, synced := m.synced + 1 }
+    | .idle => m
+  | .timeoutDrop =>
+    match m.flight with
+    | .sending => { m with flight := .awaitingConfirm }
+    | _ => m
+
+end Outbox
+```
+
+Update the `beginSync` / `serverAck` / `timeoutDrop` branches in `OutboxLaws.lean` with `cases h : m.flight <;> simp_all [Flight.count] <;> omega` and run `lakeport check` again:
+
+```sh title="Zero-byte proof verification passes"
+$ lakeport check
+  check Outbox
+  check OutboxLaws [proof-only, 0 B C]
+ok (0 sorryAx, 0 unused declarations)
+```
+
+## Step 5: Render the UI in src/App.lp and src/app.css
+
+Now connect `Outbox.Model` and `Outbox.step` to JSX markup in `src/App.lp` and styles in `src/app.css`:
+
+```css title="src/app.css"
+.shell { max-width: 560px; margin: 48px auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.title { font-size: 24px; font-weight: 600; }
+.stats { display: flex; gap: 16px; font-family: monospace; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid #BDBEBC; background: #FFFFFF; cursor: pointer; }
+```
 
 ```lp title="src/App.lp"
-import Checklist
-set_option synthInstance.maxSize 4096
+import Outbox
 
 namespace App
-open LakeportStyle Checklist
+open LakeportStyle Outbox
 
-abbrev Event := Nat × Nat
-abbrev V := StyledView Event Nat
+def encodeAction : Action → Nat
+  | .addNote => 1
+  | .beginSync => 2
+  | .serverAck => 3
+  | .timeoutDrop => 4
 
-@[default_instance] instance {E F : Type} : ToChildren (List (StyledView E F)) E F :=
-  ⟨fun xs => xs.zipIdx.map fun (v, i) => (some i, v)⟩
+def decodeAction : Nat → Option Action
+  | 1 => some .addNote
+  | 2 => some .beginSync
+  | 3 => some .serverAck
+  | 4 => some .timeoutDrop
+  | _ => none
 
-def rowView (it : Item) : V :=
-  <div class="row" data-done={it.done}>
-    <button class="hit" onClick={(1, it.id)}>{it.label}</button>
-    <span class="box">{if it.done then "x" else ""}</span>
-    <span class="label">{it.label}</span>
-  </div>
-
-def view (m : Model) : V :=
+def view (m : Model) : StyledView Action Nat :=
   <main class="shell">
-    <header class="head">
-      <h1 class="title">Release checklist</h1>
-      <p class="sub">{toString (completedCount m) ++ " of " ++ toString m.items.length ++ " complete"}</p>
-    </header>
-    <section class="list">
-      {m.items.map rowView}
-    </section>
-    <button class="reset" onClick={(2, 0)}>Reset checklist</button>
+    <h1 class="title">Local-First Note Outbox</h1>
+    <div class="stats">
+      <span>{"Queued: " ++ toString m.queued}</span>
+      <span>{"In flight: " ++ toString m.flight.count}</span>
+      <span>{"Synced: " ++ toString m.synced}</span>
+    </div>
+    <div class="controls">
+      <button class="btn" onClick={Action.addNote}>Write offline note</button>
+      <button class="btn" onClick={Action.beginSync}>Send next note</button>
+      <button class="btn" onClick={Action.timeoutDrop}>Simulate Wi-Fi drop</button>
+      <button class="btn" onClick={Action.serverAck}>Deliver server 200 OK</button>
+    </div>
   </main>
 
-def press (m : Model) (ev : Event) : Model × List Lakeport.Signals.Term :=
-  match ev with
-  | (1, id) => (step m (.toggle id), [])
-  | (2, _) => (step m .resetAll, [])
-  | _ => (m, [])
-
-def app : StyledApp Model Unit Event Nat where
+def app : StyledApp Model Unit Action Nat where
   initial := fun _ => {}
   view := view
-  encodeEvent := fun (tag, id) => .pair (.nat tag) (.nat id)
-  decodeEvent := fun | .pair (.nat tag) (.nat id) => some (tag, id) | _ => none
+  encodeEvent := fun a => .nat (encodeAction a)
+  decodeEvent := fun | .nat n => decodeAction n | _ => none
   encodeField := .nat
   decodeField := fun | .nat n => some n | _ => none
-  press := press
+  press := fun m a => (step m a, [])
   edit := fun m _ _ => some (m, [])
   message := fun m _ => (m, [])
   decodeNamed := fun _ _ => .error (.codec .badTag)
   commandImage := fun _ => none
-  appCommit := fun m => m.commit
-  descriptor := "release-checklist/1"
-  profile := ⟨⟨32, 16384⟩, ⟨32, 16384⟩⟩
+  appCommit := fun m => m.totalNotes
+  descriptor := "note-outbox/1"
+  profile := ⟨⟨32, 65536⟩, ⟨32, 65536⟩⟩
 
 end App
 ```
 
-<Callout kind="note" title="Why buttons contain text labels">
-In Lakeport, `<button>` carries an accessible text label only rather than arbitrary nested `<div>` trees. That rule guarantees every button has a real accessible name on iOS VoiceOver, Android TalkBack, GTK, and the DOM alike. To make a rich card clickable, place `<button class="hit" onClick={...}>{label}</button>` inside a `position: relative` container alongside visual `<span>` children styled with `pointer-events: none`.
+Run `lakeport dev` to test in your browser, or `lakeport build web --release` to emit pre-rendered HTML and `app_lp2.wasm` in `dist/web/`.
+
+<Callout kind="important" title="A candid note on <button>, clickable cards, and gestures">
+As soon as you build richer UI beyond text buttons (such as a clickable card with an icon and badge), you will notice that Lakeport currently only permits `onClick` on `<button>`, and `<button>` only accepts a `String` label. That is **not** a philosophical feature; it is a real constraint inherited from freezing Lakeport's 4-constructor `ViewApi` kernel early (and it is the exact reason React Native provides `Pressable` / `onPress` on arbitrary containers). In [Views, SDKs, and .lp TSX](/docs/views-and-tsx), we show the `.hit-overlay` CSS workaround used across `lakeport.dev` today and state plainly which gestures (such as touch swiping) are not yet wired into Lean.
 </Callout>
 
-## 4. Add a stylesheet
-
-Create `src/app.css` defining `.shell`, `.head`, `.title`, `.sub`, `.list`, `.row`, `.hit`, `.box`, `.label`, and `.reset`:
-
-```css title="src/app.css"
-* { box-sizing: border-box; }
-body { margin: 0; background: #f8fafc; color: #0f172a; font-family: system-ui, sans-serif; }
-.shell { max-width: 520px; margin: 48px auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-.head { display: flex; flex-direction: column; gap: 6px; }
-.title { font-size: 24px; font-weight: 700; }
-.sub { font-size: 14px; color: #475569; }
-.list { display: flex; flex-direction: column; gap: 8px; }
-.row { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; }
-.row[data-done="true"] { background: #f1f5f9; }
-.hit { position: absolute; top: 0; right: 0; bottom: 0; left: 0; opacity: 0; cursor: pointer; }
-.box { width: 20px; height: 20px; border: 1px solid #64748b; border-radius: 4px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.label { font-size: 15px; pointer-events: none; }
-.reset { align-self: flex-start; padding: 8px 14px; border-radius: 6px; background: #0f172a; color: #ffffff; }
-```
-
-## 5. Prove your first invariant
-
-Create `src/ChecklistLaws.lean`. Because `App.lp` does not import `ChecklistLaws` and `ChecklistLaws.lean` contains only `theorem` declarations, Lakeport checks the proof during every build and drops the module to `0` bytes of C and WebAssembly.
-
-```lean title="src/ChecklistLaws.lean"
-import Checklist
-
-namespace Checklist.Laws
-open Checklist
-
-theorem step_preserves_item_count (m : Model) (a : Action) :
-    (step m a).items.length = m.items.length := by
-  cases a <;> simp [step]
-
-end Checklist.Laws
-```
-
-## 6. Check and build
-
-Run `lakeport check` for fast feedback, then build the release WebAssembly and pre-rendered HTML bundle:
-
-```sh title="Terminal"
-lakeport check .
-lakeport build web . --release
-```
-
-Inspect `dist/web/index.html`. Lakeport executed your compiled `app.wasm` at build time, wrote the initial `<main class="shell">...</main>` markup directly into `index.html`, and attached `boot.mjs` so the browser hydrates the existing DOM nodes in place on commit `0` without tearing down or recreating a single element.
-
-Now that you have the loop under your fingers, read [Versioned union contracts](/docs/versioned-contracts) to see how Lakeport structures real production apps that talk to a server.
+Next, continue to **Recommended patterns** starting with [Client state and proofs](/docs/pure-core-and-proofs).

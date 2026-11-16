@@ -1,89 +1,89 @@
 ---
-title: "Views, .lp TSX, and memoization"
-summary: "Write typed JSX in Lean, understand accessible hit overlays and keyed lists, and cache expensive subtrees with MemoCell."
-section: "Building interfaces"
+title: "SDK map, views, and .lp TSX"
+summary: "Discover Lakeport's built-in SDKs and capability plugins, write typed .lp JSX views, and understand current button and gesture limits."
+section: "Modules and capabilities"
 order: 7
-readingMinutes: 8
+readingMinutes: 9
 updated: "2026-11-15"
 ---
 
-# Views, .lp TSX, and memoization
+# SDK map, views, and .lp TSX
 
-Lakeport `.lp` files let you write familiar JSX markup directly inside Lean 4 modules. Before the Lean compiler runs, `lakeport` lowers every JSX expression into typed `LakeportStyle.StyledView` constructors and writes a line-and-column source map so compiler errors point straight at your `.lp` file.
+Before diving into `.lp` component syntax, here is a complete map of the **modules and capabilities** bundled with Lakeport so you know what exists out of the box without hunting through source directories.
 
-## Supported HTML and vector primitives
+## Built-in SDKs and capability plugins
 
-Because `.lp` views are designed to target both Web DOM today and native host trees (GTK4, AppKit, Direct2D, UIKit, and Android Views) as platform gates close, Lakeport focuses on a compact, well-specified set of semantic elements:
+Lakeport automatically wires **five pure-Lean SDKs** into every application build, plus **three optional capability plugins** for streaming transports, device hardware, and local inference:
 
-- **Layout and landmarks:** `div`, `span`, `header`, `section`, `main`, `aside`, `footer`, `nav`
-- **Typography:** `h1`, `h2`, `h3`, `p`
-- **Controls:** `button`, `input`, `textarea`
-- **Media and graphics:** `img` (with required `src` and `alt`) and `svg` (containing `path`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `g`, `defs`, `linearGradient`, and `clipPath`)
+| Module | Import / ID | What it gives you |
+| --- | --- | --- |
+| `lakeport-style` | `open LakeportStyle` | `StyledView` JSX nodes, CSS class verification, `MemoCell` / `MemoKeyedList`, and binary `LPST` style diffing. |
+| `lakeport-router` | `open LakeportRouter` | `UrlCodec`, `LawfulUrlCodec` round-trip proofs, `RouterState` (stack, sheet, drawer), and `<RouterShell>`. |
+| `lakeport-effects` | `open LakeportEffects` | `18` typed `EffectReq` / `EffectResp` host commands (HTTP, WS, KV, clipboard, haptics, timers, plugins) and idempotent `Outbox`. |
+| `lakeport-json` | `open LakeportJson` | SWAR-accelerated RFC 8259 `Json.parse`, `Json.stringify`, `ToJson` / `FromJson`, `fieldAs`, streaming NDJSON, and round-trip laws. |
+| `lakeport-xml` | `open LakeportXml` | Pure-Lean XML lexer, tree parser, serializer, and escapes for RSS, SVG, and enterprise XML payloads. |
+| `@lakeport/transport` | Plugin ID `"transport"` | Server-Sent Events (SSE), chunked binary frame streams, and multipart uploads beyond the core `64 KB` effect ceiling. |
+| `@lakeport/media-device` | Plugin ID `"media-device"` | Camera/microphone capture, geolocation, Bluetooth LE scans, network reachability, and native haptics. |
+| `@lakeport/on-device-ai` | Plugin ID `"on-device-ai"` | Structured invocation and token streaming for local/on-device model runtimes. |
 
-## Accessible buttons and hit overlays
+## Supported .lp JSX elements
 
-In HTML it is common (and tempting) to stuff three `<div>`s and an unnamed `<svg>` inside a `<button>` or attach `onClick` to a `<div>`. Screen readers on mobile and desktop struggle with both habits.
+Lakeport `.lp` files let you write JSX markup directly inside Lean 4 modules. Prior to elaboration, `LpTsx.lean` lowers JSX tags to `LakeportStyle.StyledView` values while preserving 1:1 line numbers so compiler diagnostics point straight at your `.lp` file:
 
-Lakeport enforces two rules at compile time:
+- **Layout and landmarks (`10`):** `div`, `span`, `header`, `section`, `main`, `aside`, `footer`, `nav`, `p`, and headings `h1`, `h2`, `h3` (`12` text/container tags total)
+- **Interactive controls (`3`):** `button`, `input`, `textarea`
+- **Media and vector graphics:** `img` (requiring `src` and `alt`) and `svg` (`path`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `g`, `defs`, `linearGradient`, `clipPath`, lowered to `data-lp-svg*` attributes for Web DOM and native vector renderers)
 
-1. `onClick={event}` is valid **only on `<button>`**.
-2. A `<button>` renders a plain text label (`String`) so every interactive target has an unambiguous accessible name across every platform.
+## Candid guide: buttons, .hit-overlay, and gestures (like swiping)
 
-When you want a rich card, navigation tab, or icon button to be clickable, layer an invisible `<button class="hit-overlay">` inside a `position: relative` container and give sibling visual elements `pointer-events: none`:
+If you try writing `<div onClick={ev}>` or nesting an `<svg>` icon and two `<span>`s inside `<button>`, `lakeport check` rejects it:
 
-```lp title="Accessible icon + badge button pattern"
-def navTab (active : Bool) (label : String) (count : Nat) (ev : Event) : V :=
-  <div class="nav-tab" data-active={active}>
-    <button class="hit-overlay" onClick={ev}>{label}</button>
-    <span class="nav-label">{label}</span>
-    <span class="nav-count">{toString count}</span>
+1. `onClick={ev}` is only accepted on `<button>`.
+2. `<button>` only accepts a `String` child (no nested elements).
+
+**Why is it like this?** Honestly, this is an architectural trade-off (and a rough edge) from freezing Lakeport's verified kernel (`ViewApi` in `lakeport-core`) early around four minimal constructors: `.text`, `.button (label : String) (action : E)`, `.input`, and `.group`. Keeping `ViewApi` tiny made it tractable to prove reconciliation and capacity rollback theorems, yet in real UI work people constantly need clickable cards, icon buttons, and row items. It is the exact reason React Native introduced `Pressable` and `onPress` on non-button containers rather than forcing every tap target through a text-only button.
+
+**How to build clickable cards and icon buttons today (`.hit-overlay`):** Layer a full-bleed `<button class="hit-overlay" onClick={ev}>Accessible label</button>` inside a `position: relative` container and set `pointer-events: none` on visual sibling elements:
+
+```lp title="Clickable card workaround used across lakeport.dev"
+def chapterCard (title summary : String) (ev : UiEvent) : V :=
+  <div class="chapter-card">
+    <button class="hit-overlay" onClick={ev}>{title}</button>
+    <span class="chapter-title">{title}</span>
+    <p class="chapter-summary">{summary}</p>
   </div>
 ```
 
-Keyboard focus, Enter/Space activation, and VoiceOver/TalkBack labels all attach to the real `<button>`, while your visual layout stays completely flexible.
+```css title="src/app.css"
+.chapter-card { position: relative; }
+.hit-overlay { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.chapter-title, .chapter-summary { pointer-events: none; }
+```
 
-## Controlled text inputs
+This keeps real `<button>` keyboard focus, Enter/Space activation, and screen-reader labels intact, though it is undeniably boilerplate compared to a native `Pressable` container.
 
-`<input>` and `<textarea>` bind to a typed field identifier (`F` in `StyledView E F`) via the `field={...}` attribute:
+**What about swiping and touch gestures?** Today, Lakeport's core event channel models discrete **presses** (`onClick`), **controlled text edits** (`field={id}`), **keyboard shortcuts** (`data-hotkey`, `data-submit`), and **pointer ghost-drag reorder/drop** (`data-lp-draggable` / `data-lp-drop-zone` mapped onto synthetic buttons). Continuous touch gestures (**horizontal swipe-to-dismiss, pan/pinch, scroll position callbacks, and focus/blur events**) do **not** cross into Lean state yet. On the web, CSS scroll-snap carousels work purely in the browser, while gesture-driven state machines require extending `ViewApi` or bridging a host gesture plugin.
 
-```lp title="Controlled search field"
+## Controlled inputs and keyed lists
+
+`<input>` and `<textarea>` bind to your `StyledApp`'s field identifier type `F` via `field={...}`:
+
+```lp title="Controlled search box"
 <input
   class="search-input"
   field={1}
   value={state.query}
-  placeholder="Filter documentation..."
-  aria-label="Filter documentation"
+  label="Filter chapters"
+  placeholder="Filter chapters..."
 />
 ```
 
-Whenever the user edits the input, the host shell invokes `app.edit state fieldId newValue`, returning the updated `State` and any outbound effects.
+When rendering dynamic `List` or `Array` collections that can reorder or delete mid-list, supply a stable `Nat` key with `key={item.id}` (or use `MemoKeyedList` for large lists).
 
-## Keyed lists
+## Zero-stale-dependency caching with MemoCell
 
-When rendering a `List` or `Array` of child views, Lakeport needs a stable `Nat` key per child so the reconciler updates moved or edited rows in place. You can attach `key={item.id}` explicitly on each element, or provide a module-local `ToChildren` instance for static positional lists:
+Unlike React's `useMemo`, where forgetting an item in `[depA, depB]` causes stale UI bugs, `LakeportStyle.MemoCell α β f` stores `(input : α)`, `(output : β)`, and an erased proof `coherent : output = f input`.
 
-```lean title="Positional keys for static lists"
-@[default_instance] instance {E F : Type} : ToChildren (List (StyledView E F)) E F :=
-  ⟨fun xs => xs.zipIdx.map fun (v, i) => (some i, v)⟩
-```
+On a cache hit (`c.input == x`), `c.refresh x` returns the cached `output` with zero allocations; on a change, it recomputes `f x`. The kernel theorem `MemoCell.refresh_get` guarantees `(c.refresh x).get = f x`, and `coherent` erases to `0` bytes at runtime.
 
-Use explicit `key={item.id}` whenever rows can be reordered, inserted at the head, or deleted mid-list.
-
-## Proved subtree memoization with MemoCell
-
-In JavaScript frameworks, `useMemo` trusts you to list every dependency in an array; forget one and your UI displays stale data.
-
-Because Lean functions are pure, `LakeportStyle.MemoCell α β f` stores `(input : α)`, `(output : β)`, and an erased proof `coherent : output = f input`. On a cache hit (`c.input = x`), `c.refresh x` returns `c` untouched with zero heap allocations:
-
-```lean title="Caching parsed MDX views in application state"
-def renderDocSlug (slug : DocSlug) : MdxDoc :=
-  LakeportMdx.parseMdx (Docs.rawSource slug)
-
-structure DocsCache where
-  current : MemoCell DocSlug MdxDoc renderDocSlug :=
-    MemoCell.init renderDocSlug .introduction
-```
-
-Even better, `MemoCell.refresh_get` is a kernel-checked theorem (`(c.refresh x).get = f x`), so caching can never cause your view to diverge from recomputing from scratch, and the `coherent` field erases to zero bytes at runtime.
-
-Next, read [Styling and .lpcss](/docs/styling-and-lpcss) to see how Lakeport compiles CSS with zero runtime style recalculation overhead.
+Next, read [Styling, CSS modules, and .lpcss](/docs/styling-and-lpcss).

@@ -1,7 +1,7 @@
 ---
 title: "Styling, CSS modules, and .lpcss"
-summary: "Compile-time verified CSS classes, scoped import_css modules, data-attribute state styling, and native .lpcss bundles."
-section: "Building interfaces"
+summary: "Catch CSS class typos at compile time, scope package styles with import_css, drive dynamic state via data-*, and emit .lpcss for native shells."
+section: "Modules and capabilities"
 order: 8
 readingMinutes: 6
 updated: "2026-11-15"
@@ -9,26 +9,22 @@ updated: "2026-11-15"
 
 # Styling, CSS modules, and .lpcss
 
-In Lakeport, stylesheets are ordinary `.css` files checked at compile time rather than untyped strings concatenated at runtime. One stylesheet compiles to `bundle.css` for browsers and `.lpcss` layout metadata for native target shells.
+Stylesheets in Lakeport are ordinary `.css` files verified at compile time rather than untyped runtime strings or JavaScript CSS-in-JS objects. One `.css` pipeline produces `bundle.css` for browsers and a binary `LPCS` (`bundle.lpcss`) style sheet for native host shells.
 
 ## Compile-time class verification
 
-When you write `class="card card-header"` in a `.lp` file, Lakeport checks every token against your global stylesheet (`[lakeport] css = "src/app.css"`) and built-in utility tokens before Lean even runs.
+When you write `class="card card-header"` in a `.lp` file, Lakeport parses `[lakeport] css = "src/app.css"` before Lean runs and checks every class token against your stylesheet and Lakeport's built-in layout utility index.
 
-If you rename `.card-header` to `.panel-header` in `src/app.css` and miss a reference in `src/Marketing.lp`, `lakeport check` stops immediately:
+Renaming `.card-header` in `src/app.css` without updating a `.lp` reference fails `lakeport check` immediately with a source-mapped error:
 
 ```sh title="Compile-time CSS diagnostic"
 src/Marketing.lp:42:10: error[css-global]: unknown CSS class "card-header":
   not defined by the global stylesheet and not a supported utility
 ```
 
-Dead typos never survive to production.
+## Scoped package stylesheets with import_css
 
-## Scoped CSS modules for reusable packages
-
-Global stylesheets work well inside an application, yet reusable Reservoir packages (such as `lakeport-mdx`) should never pollute a consumer's global class namespace.
-
-Any `.lp` file can import a co-located stylesheet with `import_css`:
+Reusable packages (such as `packages/lakeport-mdx`) should never collide with an application's global class names. Any `.lp` module can bind a co-located stylesheet using `import_css`:
 
 ```lp title="packages/lakeport-mdx/src/LakeportMdx/Render.lp"
 import LakeportMdx.Ast
@@ -38,35 +34,33 @@ def badge (lang : String) : StyledView E F :=
   <span class={MdxCss.langBadge}>{lang}</span>
 ```
 
-Lakeport hashes and scopes every selector in `Mdx.css` per package and generates typed `ClassName` bindings (`MdxCss.langBadge`, `MdxCss.codeCard`, and so on). Misspelling `MdxCss.langBage` fails compilation with a clear hint naming `./Mdx.css`.
+During lowering, Lakeport computes a 6-character SHA-256 prefix from the module identity, rewrites `.langBadge` into a scoped selector inside Cascade Layer L5 of `bundle.css`, and exposes `MdxCss.langBadge : ClassName` so typos fail compilation cleanly.
 
-## Dynamic state with data-* attributes and CSS variables
+## Dynamic state with data-* attributes and CSS custom properties
 
-Notice that `class="..."` literals are static. Instead of building brittle string templates like `` `btn ${isActive ? 'btn-active' : ''} ${theme}` ``, keep `class="btn"` static and pass dynamic state through typed `data-*` attributes and `--*` CSS custom properties:
+Static `class="..."` strings allow the compiler to hoist `NodeStyle` records into top-level constants (`_lp_ns_k`) instead of allocating class arrays on every render frame. Express dynamic visual state with typed `data-*` attributes and `--*` CSS custom properties:
 
-```lp title="Static class + typed data attributes"
-<div class="gate-pill" data-open={gateOpen} --pill-accent={accentHex}>
-  <span>{if gateOpen then "Permitted" else "Blocked by Gate"}</span>
+```lp title="Static class + typed data attribute"
+<div class="sync-pill" data-status={state.statusSlug} --pill-progress={progressPct}>
+  <span>{state.statusLabel}</span>
 </div>
 ```
 
-Then style those states cleanly in CSS:
-
 ```css title="src/app.css"
-.gate-pill {
-  padding: 4px 10px;
-  border-radius: 9999px;
-  background: rgba(220, 38, 38, 0.12);
-  color: #dc2626;
+.sync-pill {
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-muted);
 }
-.gate-pill[data-open="true"] {
-  background: rgba(13, 148, 136, 0.14);
-  color: var(--pill-accent, #0d9488);
+.sync-pill[data-status="synced"] {
+  background: var(--proved-soft);
+  color: var(--proved);
 }
 ```
 
-## Light and dark themes without duplication
+## Light and dark themes via token overrides
 
-Define all color and surface tokens as CSS custom properties on your root `.site-shell` class, then override **only the tokens** under `.site-shell[data-theme="dark"]` (or `[data-theme="light"]`). Every component reads `var(--bg-surface)`, `var(--ink-primary)`, and `var(--border-subtle)`, so both themes stay synchronized without duplicating layout rules.
+Define semantic surface, text, border, and evidence variables (`--bg`, `--surface`, `--ink`, `--brand`, `--proved`, `--trusted`, `--unknown`, `--failed`) on your root shell class, then override **only the variables** under `@media (prefers-color-scheme: dark)` and `[data-theme="dark"]`. Every component inherits both themes automatically without duplicating layout rules.
 
-Next, read [Routing and static site generation](/docs/routing-and-ssg) to wire typed URLs and zero-create hydration.
+Next, read [Routing, LawfulUrlCodec, and SSG](/docs/routing-and-ssg) to see how URLs round-trip cleanly and pre-render to static HTML.

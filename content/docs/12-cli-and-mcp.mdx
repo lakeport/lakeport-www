@@ -1,7 +1,7 @@
 ---
 title: "CLI and MCP workflow reference"
-summary: "Everyday lakeport commands, source-mapped diagnostics, negative contract checks in CI, and running lakeport mcp for coding agents."
-section: "Ecosystem and tooling"
+summary: "Command reference for lakeport check, dev, build, doctor, and mcp, plus CI negative checks for exhaustive union handlers."
+section: "Modules and capabilities"
 order: 12
 readingMinutes: 6
 updated: "2026-11-15"
@@ -9,37 +9,39 @@ updated: "2026-11-15"
 
 # CLI and MCP workflow reference
 
-Everything in Lakeport runs through a single native command-line binary: `lakeport`. There is no separate bundler config, Babel plugin chain, or CSS-in-JS PostCSS wrapper to maintain.
+Everything in Lakeport runs through one native binary (`lakeport`) without external Webpack, Vite, Babel, or PostCSS configuration files.
 
-## Everyday commands
+## Core CLI commands
 
-| Command | What it does |
+| Command | Purpose |
 | --- | --- |
-| `lakeport check [dir]` | Lowers `.lp` TSX, validates global and scoped CSS classes, type-checks all `.lean` modules and `*Laws.lean` theorems, and maps diagnostics back to `.lp`/`.css` line numbers. |
-| `lakeport build web [dir] --release` | Runs `check`, compiles reachable runtime modules to `wasm32` (`-Oz`, LTO, `--gc-sections`, `wasm-opt`), pre-renders all `ssgRoutes` to static HTML, and emits `dist/web/`. |
-| `lakeport dev [dir]` | Starts a local development server with automatic rebuilds on `.lean`, `.lp`, and `.css` edits. |
-| `lakeport build <target> [dir]` | Builds experimental native target outputs (`linux`, `macos`, `windows`, `ios`, `android`; framework support gates open). |
-| `lakeport doctor` | Audits installed compilers, linkers, Binaryen, Node, and platform SDKs. |
-| `lakeport mcp` | Starts the Model Context Protocol server over stdio so coding agents can invoke structured checks and inspect diagnostics. |
+| `lakeport init <dir>` | Scaffolds `lakefile.toml`, starter `src/App.lp`, `src/app.css`, and coding-agent instructions. |
+| `lakeport check [dir]` | Verifies global and scoped CSS classes, lowers `.lp` files with 1:1 line maps, checks all `.lean` and `*Laws.lean` theorems (`0 sorryAx`), and runs `.ilean` reachability + zero-`Float` audits. |
+| `lakeport dev [dir]` | Runs a local development server watching `.lp`, `.css`, and `.lean` files with structured reload diagnostics. |
+| `lakeport build web [dir] --release` | Runs `check`, compiles reachable C11 modules to `wasm32` (`-Oz -flto --gc-sections` + `wasm-opt -Oz`), and pre-renders all `ssgRoutes` to `dist/web/`. |
+| `lakeport build <target> [dir]` | Builds experimental native host targets (`linux`, `macos`, `windows`, `ios`, `android`; platform UI gates remain open). |
+| `lakeport doctor` | Verifies `lean`, `lake`, `emcc`, `wasm-opt`, `node`, and optional native SDKs on the host machine. |
+| `lakeport mcp` | Launches the Model Context Protocol stdio server so coding agents can invoke structured compiler checks directly. |
 
-## Connecting coding agents with lakeport mcp
+## Structured diagnostics over lakeport mcp
 
-Instead of letting an AI coding agent scrape raw terminal output with fragile regexes, configure your editor or agent harness to launch `lakeport mcp`:
+Configuring Claude Code, Codex, or Cursor to run `lakeport mcp` gives your agent machine-readable JSON diagnostics instead of raw terminal text:
 
-```toml title="MCP server configuration"
+```toml title="Registering lakeport mcp"
 [mcp_servers.lakeport]
 command = "lakeport"
 args = ["mcp"]
 ```
 
-Through MCP, the agent receives structured JSON diagnostics with exact `.lp`, `.css`, and `.lean` file paths, 1-indexed line and column numbers, error codes (`css-global`, `tsx-attr`, `lean`), and concrete fix hints (such as reminding the agent to add `key={...}` on mapped list children or naming which stylesheet binding missed a class).
+Each diagnostic entry reports:
 
-## Running negative contract checks in CI
+- Exact source path (`src/Widgets.lp`, `src/app.css`, or `src/OutboxLaws.lean`) mapped back from lowered `.lean` coordinates.
+- 1-indexed line and column numbers.
+- Category code (`css-global`, `css-module`, `tsx-tag`, `tsx-attr`, `lean`, `float-ban`, or `dead-decl`).
+- Unsolved Lean proof goals when a `*Laws.lean` theorem fails after a reducer edit.
 
-Positive builds verify that your current code compiles. For shared edge contracts (`shared/`), we also recommend a 30-line negative check script in CI (`tests/check-negative-v3.py`) that copies `shared/` into a temporary directory, appends `| v3` to `Version`, and asserts that `lakeport check` **fails** with an unhandled union case error.
+## Negative union checks in CI
 
-Why test that a broken program fails to compile? Because it prevents anyone from accidentally adding a `| _ =>` wildcard catch-all to `clientHandler` six months later. If someone sneaks a wildcard arm in, adding `| v3` would unexpectedly *succeed*, failing the negative CI check and catching the regression right in code review.
+To guarantee that nobody introduces a catch-all `_ =>` wildcard arm into a critical schema union, add a small negative test in CI (like `tests/check-negative-v3.py` in `lakeport-www`): copy the workspace to a temp folder, inject a dummy `| v3` constructor into your schema enum, run `lakeport check`, and assert that compilation **fails** naming the missing `v3` case.
 
-<Callout kind="tip" title="Explore this site's own source repository">
-This entire marketing site and documentation manual (`lakeport-www`) is built with Lakeport, `site-contract`, and `lakeport-mdx`. Inspect `shared/`, `packages/lakeport-mdx/`, `content/docs/`, and `tests/check-negative-v3.py` in the repository for a complete working reference.
-</Callout>
+Next, dive into **How Lakeport is built** starting with [Architecture overview](/docs/architecture-overview).

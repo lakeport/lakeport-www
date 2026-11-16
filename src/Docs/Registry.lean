@@ -16,8 +16,8 @@ def parseDocSlug (s : DocSlug) : MdxDoc :=
 def sectionsOrder : List String := [
   "Getting started",
   "Recommended patterns",
-  "Building interfaces",
-  "Ecosystem and tooling"
+  "Modules and capabilities",
+  "How Lakeport is built"
 ]
 
 def docsInSection (sec : String) : List DocSlug :=

@@ -1,0 +1,101 @@
+---
+title: "Frontend JSON schema unions"
+summary: "Decode active v1 and v2 JSON payloads from Go, Node, Python, or Rust servers right in your frontend, and use headers when gating writes."
+section: "Recommended patterns"
+order: 5
+readingMinutes: 8
+updated: "2026-11-15"
+---
+
+# Frontend JSON schema unions
+
+Almost nobody using Lakeport runs Lean on their backend. Your API is far more likely written in Go, Node/TypeScript, Python, Rust, or Rails, and almost every endpoint speaks **JSON**.
+
+Meanwhile, you do not control when every client upgrades:
+
+- Users leave browser tabs open for days across sleep/wake cycles.
+- **Service Workers** serve precached or `stale-while-revalidate` WebAssembly and JS bundles until the next navigation or cache rotation.
+- Local-first outboxes replay queued edits created before your latest server deploy.
+
+You do not need a shared client/server Lean monorepo to keep those clients working. Instead, model the **active backend JSON schemas** as an explicit union right inside your frontend's `src/Api/` folder.
+
+## 1. Decode active backend JSON schemas in src/Api/
+
+Suppose your backend team is migrating `GET /api/orders/:id` from a flat `v1` JSON object (`total_cents`, `status`) to a nested `v2` JSON object (`amount.cents`, `amount.currency`, `refundable`).
+
+Instead of overwriting your old decoder in place, define an inductive union of the schemas currently alive in production using Lakeport's built-in `LakeportJson` SDK:
+
+```lean title="src/Api/Orders.lean (frontend-only JSON schema union)"
+import LakeportJson.Codec
+open LakeportJson
+
+structure OrderV1 where
+  id : String
+  totalCents : Nat
+  status : String
+  deriving DecidableEq, Repr
+
+structure OrderV2 where
+  id : String
+  cents : Nat
+  currency : String
+  refundable : Bool
+  deriving DecidableEq, Repr
+
+inductive OrderSchema where
+  | v1 (order : OrderV1)
+  | v2 (order : OrderV2)
+  deriving DecidableEq, Repr
+
+def decodeOrderSchema (rawJson : String) : Option OrderSchema :=
+  match Json.parse rawJson with
+  | .error _ => none
+  | .ok j =>
+    match (do
+      let id ← j.fieldAs String "id"
+      let amt ← j.field "amount"
+      let cents ← amt.fieldAs Nat "cents"
+      let currency ← amt.fieldAs String "currency"
+      let refundable ← j.fieldAs Bool "refundable"
+      pure (OrderSchema.v2 { id, cents, currency, refundable })) with
+    | .ok v2Order => some v2Order
+    | .error _ =>
+      match (do
+        let id ← j.fieldAs String "id"
+        let totalCents ← j.fieldAs Nat "total_cents"
+        let status ← j.fieldAs String "status"
+        pure (OrderSchema.v1 { id, totalCents, status })) with
+      | .ok v1Order => some v1Order
+      | .error _ => none
+```
+
+In your reducer and `.lp` views, match exhaustively on `OrderSchema` **without a wildcard `_ =>` arm**:
+
+```lean title="Exhaustive handling in your frontend"
+def formatOrderSummary : OrderSchema → String
+  | .v1 o => "Order " ++ o.id ++ ": $" ++ toString (o.totalCents / 100) ++ " (" ++ o.status ++ ")"
+  | .v2 o => "Order " ++ o.id ++ ": $" ++ toString (o.cents / 100) ++ " " ++ o.currency
+```
+
+## 2. Do backends need to advertise their version?
+
+Be pragmatic about version advertisement:
+
+- **For reading responses, schema compliance is already proof of the version.** If `GET /api/orders/ord-42` parses as `OrderSchema.v1` or `OrderSchema.v2`, your frontend already knows which schema arrived without calling a separate `/api/capabilities` endpoint.
+- **For gating new write actions, advertising capabilities is a helpful recommendation.** Before a user clicks a brand-new `Request instant refund` button (`POST /api/orders/:id/refund`), your UI wants to know whether the backend fleet actually supports that endpoint yet.
+- **HTTP response headers are a lightweight convenience.** Having your Go, Node, or Python server include headers such as `X-API-Version: 2` or `X-Capabilities: instant-refund` (read via `EffectReq.httpRequest` / `EffectResp.httpResponse` headers, or carried as a boolean in the JSON body) lets the frontend hide or disable `v2`-only write buttons until your backend rollout is complete.
+
+## 3. Interactive frontend JSON & header simulator
+
+Click through the four `GET /api/orders/ord-42` server responses below. Each button feeds the displayed raw JSON string through `LakeportJson.Json.parse` and `decodeOrderSchema` inside this page's WebAssembly binary:
+
+<ContractSimulator />
+
+## 4. The four-step frontend-first lifecycle
+
+1. **Add the new schema to `src/Api/`:** Keep `OrderSchema.v1` and add `OrderSchema.v2`. Verify with `lakeport check` that every screen handles both branches.
+2. **Release the frontend first:** Deploy your static assets / Cloudflare Worker. Clients now accept `v1` and `v2` JSON while your backend still serves `v1`.
+3. **Roll out your backend:** Deploy the updated server returning `v2` JSON (and optionally advertising `X-Capabilities` once every server replica is upgraded).
+4. **Delete `OrderSchema.v1` when retired:** Once backend logs show zero `v1` traffic and Service Worker caches have rotated, delete the `| v1` constructor. `lakeport check` points to every dead `v1` branch so you can clean it up in one pass.
+
+Next, read [Frontend-first rollouts and Service Workers](/docs/frontend-first-releases) to see how rolling deploys, cached bundles, and offline outboxes interact during a live release.
