@@ -74,10 +74,24 @@ session.input(
 assert.ok(allText().includes('Custom interactive heading'));
 assert.ok(allText().includes('pure Lean Wasm'));
 
-// 7. Embedded <ContractSimulator /> inside /docs/versioned-contracts
+// 7. Embedded <ContractSimulator /> inside /docs/versioned-contracts (real LakeportJson union + headers)
 session.navigate('/docs/versioned-contracts');
-clickByLabel('Corrupt CAPS schema v99');
-assert.ok(allText().includes('none (fail-closed: unknown schema rejected)'));
+assert.ok(allText().includes('OrderSchema.v1 (matched from JSON shape alone, no version header needed)'));
+clickByLabel('2. Backend v2 JSON (no header)');
+assert.ok(allText().includes('OrderSchema.v2 (matched from nested amount JSON without a capability endpoint)'));
+clickByLabel('3. Backend v2 + capability header');
+assert.ok(allText().includes('Shown: POST /api/orders/ord-42/refund enabled by v2 schema + header'));
+clickByLabel('4. Unexpected v99 JSON');
+assert.ok(allText().includes('none (fail-closed: unknown schema rejected cleanly)'));
+
+// 8. Section 4 ("How Lakeport is built") diagrams & contributor guide
+session.navigate('/docs/architecture-overview');
+assert.ok(allText().includes('Lakeport 4-Tier Architecture Stack'));
+session.navigate('/docs/compiler-and-runtime');
+assert.ok(allText().includes('Compiler & WebAssembly Release Pipeline'));
+assert.ok(allText().includes('Single-Frame LP2 v4 Dispatch & Two-Phase Command Cycle'));
+session.navigate('/docs/contributor-guide');
+assert.ok(allText().includes('is the code actually good, or is it just working?'));
 
 session.dispose();
-console.log('PASS: Interactive Wasm smoke suite verified Flaky-Wi-Fi Checkout Simulator, Checked Fix, Rule Disclosure, Live MDX, and Docs Simulator.');
+console.log('PASS: Interactive Wasm smoke suite verified Checkout Simulator, JSON Schema Simulator, Live MDX, and Section 4 Architecture Diagrams.');

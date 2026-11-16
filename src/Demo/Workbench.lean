@@ -1,16 +1,18 @@
+import LakeportJson.Codec
 import SiteContract.Versions
 import SiteContract.Wire
 import SiteContract.Api
 /-!
-# `Site.Demo` : Checkout Retry Demo, Rollout Scrubber & Reachability Model
+# `Site.Demo` : Checkout Retry Demo, JSON Schema Union Simulator & Rollout Model
 
 Pure Lean domain logic compiled to WebAssembly for:
 1. Homepage flaky-Wi-Fi checkout simulator (`CheckoutMode`, `NetworkRun`, `runCheckout`)
 2. Underlying escrow & capability state machine (`Ledger`, `stepVerifiedLedger`)
-3. Docs `<ContractSimulator />`, `<RolloutTimeline />`, and `<DeadCodeExplorer />`
+3. Docs `<ContractSimulator />` (real `LakeportJson` frontend schema union + optional HTTP headers),
+   `<RolloutTimeline />`, and `<DeadCodeExplorer />`
 -/
 namespace Site.Demo
-open Site.Contract Site.Contract.Wire
+open LakeportJson Site.Contract Site.Contract.Wire
 
 /-! ## 1. Server Capability Profiles & Verified Ledger Core -/
 
@@ -21,21 +23,6 @@ inductive ServerMode where
   deriving DecidableEq, Repr, Inhabited
 
 namespace ServerMode
-
-def slug : ServerMode → String
-  | .legacyV1 => "v1"
-  | .stagedDual => "v2-staged"
-  | .fullV2 => "v2-full"
-
-def parse : String → ServerMode
-  | "v1" => .legacyV1
-  | "v2-staged" => .stagedDual
-  | _ => .fullV2
-
-def label : ServerMode → String
-  | .legacyV1 => "v1 only"
-  | .stagedDual => "v1 and v2 (feature off)"
-  | .fullV2 => "v1 and v2 (feature on)"
 
 def advertisement : ServerMode → Advertisement
   | .legacyV1 => legacyServerAd
@@ -92,8 +79,8 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
     let ad := srv.advertisement
     if l.delivery == .idle && 2500 <= l.available then
       let frame := match negotiateVersion ad with
-        | some .v2 => V2.encodeReq (.reserve cid 2500)
-        | _ => V1.encodeReq (.reserve cid 2500)
+        | some .v2 => (clientHandler .v2).encode (.reserve cid 2500)
+        | _ => (clientHandler .v1).encode (.reserve cid 2500)
       ({ l with
           available := l.available - 2500
           held := l.held + 2500
@@ -121,7 +108,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
     let cmd := V2.ClientFrame.instantRelease cid 2500
     if permitsV2Command (some srv.advertisement) cmd then
       if l.delivery == .idle && 2500 <= l.available then
-        let frame := V2.encodeReq cmd
+        let frame := (clientHandler .v2).encode cmd
         ({ l with
             available := l.available - 2500
             released := l.released + 2500
@@ -130,7 +117,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
       else
         (l, { seq := l.nextCid, direction := "LOCK", summary := "Payment already in progress", frame := "noop", blocked := true })
     else
-      let raw := V2.encodeReq cmd
+      let raw := (clientHandler .v2).encode cmd
       (l, { seq := l.nextCid, direction := "GATE",
             summary := "Blocked locally because server has not enabled instant_release",
             frame := raw, blocked := true })
@@ -158,7 +145,7 @@ def stepVerifiedLedger (srv : ServerMode) (l : Ledger) : LedgerAction → Ledger
       (l, { seq := l.nextCid, direction := "SYNC", summary := "Synced capabilities", frame := "CAPS/1" })
   | .injectUnnegotiated =>
     let cid := "adv_" ++ Nat.repr l.nextCid
-    let forged := V2.encodeReq (.instantRelease cid 2500)
+    let forged := (clientHandler .v2).encode (.instantRelease cid 2500)
     if permitsEncodedFrame (some srv.advertisement) forged then
       if l.delivery == .idle && 2500 <= l.available then
         ({ l with available := l.available - 2500, released := l.released + 2500, nextCid := l.nextCid + 1 },
@@ -180,12 +167,12 @@ def stepBuggyAgentRetry (l : Ledger) : Ledger :=
     { afterSend with delivery := .idle }
   { afterTimeoutUnlocked with available := afterTimeoutUnlocked.available - 2500, delivery := .inFlight "pay_2" 2500 }
 
-/-- Checked retry sequence (`reserve25 -> dropSocket -> reserve25`): locks `pay_1` and blocks duplicate charge. -/
+/-- Checked retry sequence: send `pay_1`, drop socket into `.uncertain`, then attempt duplicate `.reserve25`. -/
 def stepCheckedRetryComparison (srv : ServerMode) : Ledger :=
-  let (l1, _) := stepVerifiedLedger srv {} .reserve25
-  let (l2, _) := stepVerifiedLedger srv l1 .dropSocket
-  let (l3, _) := stepVerifiedLedger srv l2 .reserve25
-  l3
+  let l0 : Ledger := {}
+  let l1 := (stepVerifiedLedger srv l0 .reserve25).1
+  let l2 := (stepVerifiedLedger srv l1 .dropSocket).1
+  (stepVerifiedLedger srv l2 .reserve25).1
 
 /-! ## 2. Homepage Flaky-Wi-Fi Checkout Simulator -/
 
@@ -198,10 +185,10 @@ namespace CheckoutMode
 
 def slug : CheckoutMode → String
   | .agentDraft => "draft"
-  | .lakeportFixed => "checked"
+  | .lakeportFixed => "fixed"
 
 def parse : String → CheckoutMode
-  | "checked" => .lakeportFixed
+  | "fixed" => .lakeportFixed
   | _ => .agentDraft
 
 end CheckoutMode
@@ -236,42 +223,35 @@ structure CheckoutOutcome where
   step3 : String
   deriving DecidableEq, Repr
 
-/-- Evaluates the $25.00 checkout in compiled Lean Wasm using `stepBuggyAgentRetry` vs `stepVerifiedLedger`. -/
 def runCheckout (mode : CheckoutMode) (net : NetworkRun) : CheckoutOutcome :=
   let l0 : Ledger := {}
   match net with
   | .idle =>
-    { walletCents := l0.totalCents
+    { walletCents := l0.available
       chargedCents := 0
       overcharged := false
-      headline := "Ready: customer has $100.00 to buy a $25.00 item"
-      step1 := "Click \"Pay $25 on normal Wi-Fi\" to run what a unit test checks."
-      step2 := "Click \"Pay $25 on flaky Wi-Fi\" to drop the connection mid-payment."
-      step3 := "" }
+      headline := "Ready: customer wallet has $100.00"
+      step1 := "1. Pick normal Wi-Fi to run the standard unit-test path."
+      step2 := "2. Pick flaky Wi-Fi to drop the connection right after the first $25.00 request leaves."
+      step3 := "3. Compare what the agent's first draft does against Lakeport's checked fix." }
   | .normalWifi =>
-    let (l1, _) := stepVerifiedLedger .stagedDual l0 .reserve25
-    let (l2, _) := stepVerifiedLedger .stagedDual l1 .settleMilestone
-    { walletCents := l2.available
-      chargedCents := l2.totalCents - l2.available
-      overcharged := l2.totalCents != l0.totalCents
-      headline :=
-        match mode with
-        | .agentDraft => "Unit test passed: charged $25.00 once ($75.00 left)"
-        | .lakeportFixed => "Charged $25.00 once ($75.00 left in wallet)"
-      step1 := "1. App sent $25.00 payment request to server."
-      step2 := "2. Connection stayed up and server confirmed right away."
-      step3 :=
-        match mode with
-        | .agentDraft => "3. Normal unit tests stop here, so the retry bug stays hidden."
-        | .lakeportFixed => "3. Customer paid $25.00 once and received their receipt." }
+    let settled := (stepVerifiedLedger .stagedDual (stepVerifiedLedger .stagedDual l0 .reserve25).1 .settleMilestone).1
+    { walletCents := settled.available
+      chargedCents := settled.released
+      overcharged := false
+      headline := "Unit test passed: charged $25.00 once"
+      step1 := "1. App sent $25.00 payment (pay_1)."
+      step2 := "2. Server replied 200 OK right away."
+      step3 := "3. Both implementations pass this happy-path unit test." }
   | .flakyWifi =>
     match mode with
     | .agentDraft =>
       let broken := stepBuggyAgentRetry l0
+      let billed := l0.available - broken.available
       { walletCents := broken.available
-        chargedCents := l0.totalCents - broken.available
-        overcharged := broken.totalCents != l0.totalCents
-        headline := "Double-charged: $50.00 taken for a $25.00 order"
+        chargedCents := billed
+        overcharged := billed > 2500
+        headline := "Customer billed $50.00 for a single $25.00 item"
         step1 := "1. App sent $25.00 payment (pay_1), then Wi-Fi dropped before the reply."
         step2 := "2. Timeout handler cleared the \"sending\" flag to retry."
         step3 := "3. Retry sent a brand-new $25.00 payment (pay_2). Customer was billed twice." }
@@ -297,65 +277,143 @@ def formatUsd (cents : Nat) : String :=
   let pad := if rem < 10 then "0" ++ Nat.repr rem else Nat.repr rem
   "$" ++ Nat.repr dollars ++ "." ++ pad
 
-/-! ## 3. Embedded `<ContractSimulator />` State (`04-versioned-contracts.mdx`) -/
+/-! ## 3. Frontend JSON Schema Union & Header Simulator (`05-versioned-contracts.mdx`) -/
 
-inductive SimCommand where
-  | reserve
-  | milestone
-  | instant
+structure OrderV1 where
+  id : String
+  totalCents : Nat
+  status : String
+  deriving DecidableEq, Repr
+
+structure OrderV2 where
+  id : String
+  cents : Nat
+  currency : String
+  refundable : Bool
+  deriving DecidableEq, Repr
+
+/-- Frontend union of active backend JSON schemas (`src/Api/Orders.lean`). -/
+inductive OrderSchema where
+  | v1 (order : OrderV1)
+  | v2 (order : OrderV2)
+  deriving DecidableEq, Repr
+
+/-- Parse raw JSON from any Go, Node, Python, or Rust server into `OrderSchema` using `LakeportJson`. -/
+def decodeOrderSchema (rawJson : String) : Option OrderSchema :=
+  match Json.parse rawJson with
+  | .error _ => none
+  | .ok j =>
+    match (do
+      let id ← j.fieldAs String "id"
+      let amt ← j.field "amount"
+      let cents ← amt.fieldAs Nat "cents"
+      let currency ← amt.fieldAs String "currency"
+      let refundable ← j.fieldAs Bool "refundable"
+      pure (OrderSchema.v2 { id, cents, currency, refundable })) with
+    | .ok v2Order => some v2Order
+    | .error _ =>
+      match (do
+        let id ← j.fieldAs String "id"
+        let totalCents ← j.fieldAs Nat "total_cents"
+        let status ← j.fieldAs String "status"
+        pure (OrderSchema.v1 { id, totalCents, status })) with
+      | .ok v1Order => some v1Order
+      | .error _ => none
+
+inductive SimScenario where
+  | v1Server
+  | v2NoHeader
+  | v2WithHeader
+  | badGateway
   deriving DecidableEq, Repr, Inhabited
 
-namespace SimCommand
+namespace SimScenario
 
-def slug : SimCommand → String
-  | .reserve => "reserve"
-  | .milestone => "milestone"
-  | .instant => "instant"
+def all : List SimScenario := [
+  .v1Server, .v2NoHeader, .v2WithHeader, .badGateway
+]
 
-def parse : String → SimCommand
-  | "milestone" => .milestone
-  | "instant" => .instant
-  | _ => .reserve
+def slug : SimScenario → String
+  | .v1Server => "v1-json"
+  | .v2NoHeader => "v2-json"
+  | .v2WithHeader => "v2-header"
+  | .badGateway => "bad-json"
 
-def label : SimCommand → String
-  | .reserve => "reserve ($25)"
-  | .milestone => "releaseMilestone"
-  | .instant => "instantRelease ($25)"
+def parse : String → SimScenario
+  | "v2-json" => .v2NoHeader
+  | "v2-header" => .v2WithHeader
+  | "bad-json" => .badGateway
+  | _ => .v1Server
 
-end SimCommand
+def label : SimScenario → String
+  | .v1Server => "1. Backend v1 JSON"
+  | .v2NoHeader => "2. Backend v2 JSON (no header)"
+  | .v2WithHeader => "3. Backend v2 + capability header"
+  | .badGateway => "4. Unexpected v99 JSON"
+
+def httpHeaders : SimScenario → String
+  | .v1Server => "HTTP/1.1 200 OK  |  Content-Type: application/json"
+  | .v2NoHeader => "HTTP/1.1 200 OK  |  Content-Type: application/json"
+  | .v2WithHeader => "HTTP/1.1 200 OK  |  X-API-Version: 2  |  X-Capabilities: instant-refund"
+  | .badGateway => "HTTP/1.1 200 OK  |  Content-Type: application/json"
+
+def rawJson : SimScenario → String
+  | .v1Server => "{\"id\":\"ord-42\",\"total_cents\":2500,\"status\":\"paid\"}"
+  | .v2NoHeader => "{\"id\":\"ord-42\",\"amount\":{\"cents\":2500,\"currency\":\"USD\"},\"refundable\":false}"
+  | .v2WithHeader => "{\"id\":\"ord-42\",\"amount\":{\"cents\":2500,\"currency\":\"USD\"},\"refundable\":true}"
+  | .badGateway => "{\"schema\":99,\"unexpected\":true}"
+
+def hasRefundHeader : SimScenario → Bool
+  | .v2WithHeader => true
+  | _ => false
+
+end SimScenario
 
 structure ContractSimState where
-  server : ServerMode := .stagedDual
-  corruptAd : Bool := false
-  cmd : SimCommand := .instant
+  scenario : SimScenario := .v1Server
   deriving DecidableEq, Repr, Inhabited
 
-def simRawAdFields (s : ContractSimState) : List String :=
-  if s.corruptAd then
-    ["CAPS", "99", "lpw2", "unknown_cap"]
-  else
-    encodeAdvertisementFields s.server.advertisement
+structure SimOutcome where
+  matchedBranch : String
+  schemaValid : Bool
+  receiptText : String
+  refundButtonAllowed : Bool
+  refundStatus : String
+  deriving DecidableEq, Repr
 
-def simParsedAd (s : ContractSimState) : Option Advertisement :=
-  parseAdvertisement (simRawAdFields s)
+/-- Exhaustive frontend handler over `OrderSchema` (`0` wildcard arms on active schemas). -/
+def evaluateContractSim (s : ContractSimState) : SimOutcome :=
+  let sc := s.scenario
+  match decodeOrderSchema sc.rawJson with
+  | some (.v1 o) =>
+    { matchedBranch := "OrderSchema.v1 (matched from JSON shape alone, no version header needed)"
+      schemaValid := true
+      receiptText := "Order " ++ o.id ++ ": " ++ formatUsd o.totalCents ++ " (" ++ o.status ++ ")"
+      refundButtonAllowed := false
+      refundStatus := "Hidden: server returned v1 JSON and did not advertise instant-refund" }
+  | some (.v2 o) =>
+    let canRefund := o.refundable && sc.hasRefundHeader
+    { matchedBranch :=
+        if sc.hasRefundHeader then
+          "OrderSchema.v2 (nested amount JSON + X-Capabilities: instant-refund header)"
+        else
+          "OrderSchema.v2 (matched from nested amount JSON without a capability endpoint)"
+      schemaValid := true
+      receiptText := "Order " ++ o.id ++ ": " ++ formatUsd o.cents ++ " " ++ o.currency
+      refundButtonAllowed := canRefund
+      refundStatus :=
+        if canRefund then
+          "Shown: POST /api/orders/ord-42/refund enabled by v2 schema + header"
+        else
+          "Hidden: v2 receipt renders fine, while instant-refund write stays gated off" }
+  | none =>
+    { matchedBranch := "none (fail-closed: unknown schema rejected cleanly)"
+      schemaValid := false
+      receiptText := "Fallback banner shown; previous client state kept intact"
+      refundButtonAllowed := false
+      refundStatus := "Blocked: response did not match OrderSchema.v1 or OrderSchema.v2" }
 
-def simEncodedFrame (s : ContractSimState) : String :=
-  match s.cmd with
-  | .reserve =>
-    match simParsedAd s >>= negotiateVersion with
-    | some .v1 => V1.encodeReq (.reserve "cid-42" 2500)
-    | _ => V2.encodeReq (.reserve "cid-42" 2500)
-  | .milestone =>
-    match simParsedAd s >>= negotiateVersion with
-    | some .v1 => V1.encodeReq (.releaseMilestone "cid-42")
-    | _ => V2.encodeReq (.releaseMilestone "cid-42")
-  | .instant =>
-    V2.encodeReq (.instantRelease "cid-42" 2500)
-
-def simPermitted (s : ContractSimState) : Bool :=
-  permitsEncodedFrame (simParsedAd s) (simEncodedFrame s)
-
-/-! ## 4. `<RolloutTimeline />` (Backend-Agnostic Client Contract Pattern) -/
+/-! ## 4. `<RolloutTimeline />` (Frontend-First Release & Service Worker Overlap) -/
 
 inductive RolloutStage where
   | stage1FrontendFirst
@@ -389,41 +447,43 @@ def stageTag : RolloutStage → String
   | .stage4WithdrawRollback => "Step 4"
 
 def shortTitle : RolloutStage → String
-  | .stage1FrontendFirst => "Ship client"
+  | .stage1FrontendFirst => "Ship frontend"
   | .stage2DualServer => "Deploy backend"
-  | .stage3EnableCap => "Enable feature"
-  | .stage4WithdrawRollback => "Flip flag off"
+  | .stage3EnableCap => "Advertise header"
+  | .stage4WithdrawRollback => "Retire v1 branch"
 
 def headline : RolloutStage → String
-  | .stage1FrontendFirst => "Deploy the updated Lakeport app first while your backend still serves v1."
-  | .stage2DualServer => "Roll out your Go, Node, Python, or Rust backend with v2 support while keeping the new flag off."
-  | .stage3EnableCap => "Turn on the backend capability flag once the server deployment looks healthy."
-  | .stage4WithdrawRollback => "Flip the backend flag off to hide the new feature without redeploying the app."
+  | .stage1FrontendFirst => "Add OrderSchema.v2 to src/Api/ and ship the Lakeport frontend while your server still returns v1 JSON."
+  | .stage2DualServer => "Roll out your Go, Node, Python, or Rust backend returning v2 JSON while keeping new write capabilities off."
+  | .stage3EnableCap => "Expose X-Capabilities (or a feature flag field) once the backend rollout is healthy so updated clients show v2 actions."
+  | .stage4WithdrawRollback => "Once server logs show zero v1 responses and Service Worker caches have rotated, delete OrderSchema.v1 and let lakeport check verify cleanup."
 
 def serverAdSummary : RolloutStage → String
-  | .stage1FrontendFirst => "Serving v1 responses only"
-  | .stage2DualServer => "Serving v1 and v2 responses (instant payout flag off)"
-  | .stage3EnableCap => "Serving v1 and v2 responses (instant payout flag on)"
-  | .stage4WithdrawRollback => "Serving v1 and v2 responses (instant payout flag off)"
+  | .stage1FrontendFirst => "Returning v1 JSON"
+  | .stage2DualServer => "Returning v2 JSON (no instant-refund header)"
+  | .stage3EnableCap => "Returning v2 JSON + X-Capabilities: instant-refund"
+  | .stage4WithdrawRollback => "Returning v2 JSON only (v1 retired on server)"
 
 def cachedOldClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Continues using v1 as usual."
-  | .stage2DualServer => "Continues using v1 without errors."
-  | .stage3EnableCap => "Continues using v1 until the user refreshes."
-  | .stage4WithdrawRollback => "Continues using v1 unaffected."
+  | .stage1FrontendFirst => "Service Worker cached bundle decodes v1 JSON as usual."
+  | .stage2DualServer => "Dual-schema bundle in cache decodes both v1 and v2 JSON."
+  | .stage3EnableCap => "Older cached tab keeps reading responses until next reload."
+  | .stage4WithdrawRollback => "Active clients are on v2; v1 decoder branch deleted cleanly."
 
 def newClientBehavior : RolloutStage → String
-  | .stage1FrontendFirst => "Understands both v1 and v2; keeps Instant Payout hidden."
-  | .stage2DualServer => "Reads v2 responses; keeps Instant Payout hidden."
-  | .stage3EnableCap => "Shows Instant Payout and sends v2 requests."
-  | .stage4WithdrawRollback => "Hides Instant Payout as soon as capabilities refresh."
+  | .stage1FrontendFirst => "Accepts v1 or v2 JSON; keeps v2 write button hidden."
+  | .stage2DualServer => "Renders v2 JSON immediately; keeps v2 write button hidden."
+  | .stage3EnableCap => "Renders v2 JSON and enables the v2 write button."
+  | .stage4WithdrawRollback => "Compiles with OrderSchema.v2 only after v1 retirement."
 
 def admissionSummary : RolloutStage → String
-  | .stage3EnableCap => "Allowed because your server advertises support"
-  | _ => "Blocked in the client before any v2 request is sent"
+  | .stage3EnableCap => "Enabled when backend advertises capability header or flag"
+  | .stage4WithdrawRollback => "v2 write active; dead v1 code removed from bundle"
+  | _ => "Gated off in client reducer before any v2 write is sent"
 
 def gateOpen : RolloutStage → Bool
   | .stage3EnableCap => true
+  | .stage4WithdrawRollback => true
   | _ => false
 
 end RolloutStage
@@ -449,9 +509,9 @@ def parse : String → UsageProfile
   | _ => .fullDocsSite
 
 def label : UsageProfile → String
-  | .fullDocsSite => "Full Markdown + v1/v2 contract"
+  | .fullDocsSite => "Full Markdown + v1/v2 schemas"
   | .slugOnlyUtility => "Heading slug helper only"
-  | .v1RetiredClean => "After removing retired v1"
+  | .v1RetiredClean => "After deleting retired v1"
 
 end UsageProfile
 

@@ -4,7 +4,7 @@ import State
 # `Site.Events`: Typed UI Event Constructors & Reducer Dispatch
 
 Centralizes `(Nat × String)` UI event tags and field edits so `Brand.lp`,
-`Widgets.lp`, `Marketing.lp`, `DocsView.lp`, and `App.lp` share one verified dispatch table.
+`Widgets.lp`, `Diagrams.lp`, `Marketing.lp`, `DocsView.lp`, and `App.lp` share one verified dispatch table.
 -/
 namespace Site
 open LakeportEffects Site.Demo
@@ -23,9 +23,7 @@ def wbRun (net : NetworkRun) : UiEvent := (11, net.slug)
 def wbSeeCheckedFix : UiEvent := (12, "")
 def wbToggleRule : UiEvent := (13, "")
 
-def simServer (m : ServerMode) : UiEvent := (20, m.slug)
-def simCorrupt : UiEvent := (21, "")
-def simCommand (c : SimCommand) : UiEvent := (22, c.slug)
+def simScenario (sc : SimScenario) : UiEvent := (20, sc.slug)
 
 def rollout (idx : Nat) : UiEvent := (30, Nat.repr idx)
 
@@ -63,14 +61,8 @@ def handlePress (s : AppState) (ev : UiEvent) : Option (AppState × List Lakepor
   | (13, _) =>
     let wb' := { s.workbench with ruleOpen := !s.workbench.ruleOpen }
     some (bump { s with workbench := wb' }, [])
-  | (20, srvSlug) =>
-    let sim' := { s.contractSim with server := ServerMode.parse srvSlug, corruptAd := false }
-    some (bump { s with contractSim := sim' }, [])
-  | (21, _) =>
-    let sim' := { s.contractSim with corruptAd := !s.contractSim.corruptAd }
-    some (bump { s with contractSim := sim' }, [])
-  | (22, cmdSlug) =>
-    let sim' := { s.contractSim with cmd := SimCommand.parse cmdSlug }
+  | (20, scSlug) =>
+    let sim' := { s.contractSim with scenario := SimScenario.parse scSlug }
     some (bump { s with contractSim := sim' }, [])
   | (30, idxStr) =>
     let idx := (parseDecimalNat? idxStr).getD 1

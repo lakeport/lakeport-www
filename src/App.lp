@@ -112,12 +112,13 @@ def footerView : V :=
           {footerLink "Why Lean" "/why-lean"}
           {footerLink "Packages" "/ecosystem"}
           {footerLink "Examples" "/showcase"}
+          {footerLink "Architecture" "/docs/architecture-overview"}
           {footerLink "CLI & MCP" "/docs/cli-and-mcp"}
         </div>
       </div>
 
       <div class="footer-colophon">
-        <span>Built with Lakeport: 17 static HTML pages, compiled Lean WebAssembly</span>
+        <span>Built with Lakeport: static HTML pages hydrated into compiled Lean WebAssembly</span>
         <span class="footer-qed">Apache-2.0, ∎</span>
       </div>
     </div>

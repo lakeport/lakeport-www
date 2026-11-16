@@ -1,11 +1,12 @@
 import Demo.Workbench
 /-!
-# `Site.Demo.Laws` : Kernel-Checked Checkout & Escrow Theorems (`[proof-only, 0 B C]`)
+# `Site.Demo.Laws` : Kernel-Checked Checkout, JSON Union & Escrow Theorems (`[proof-only, 0 B C]`)
 
 Strictly `theorem`-only module verifying:
 1. `lakeportFixed_never_overcharges`: across every `NetworkRun`, the checked checkout charges at most $25.00 and conserves the $100.00 customer balance.
 2. `agentDraft_normalWifi_passes_tests` & `agentDraft_flakyWifi_double_charges`: on normal Wi-Fi the naive draft charges $25.00, while on flaky Wi-Fi it charges $50.00.
-3. Underlying `stepVerifiedLedger` conservation, capability gating, and flight-lock laws.
+3. `decodeOrder_v1_matches`, `decodeOrder_v2_matches`, and `decodeOrder_badGateway_rejected`: frontend `LakeportJson` union decoder identifies active v1/v2 JSON shapes without a capability endpoint and rejects unknown schemas cleanly.
+4. Underlying `stepVerifiedLedger` conservation, capability gating, and flight-lock laws.
 -/
 namespace Site.Demo.Laws
 open Site.Contract Site.Demo
@@ -111,6 +112,20 @@ theorem agentDraft_flakyWifi_double_charges :
     (runCheckout .agentDraft .flakyWifi).chargedCents = 5000 ∧
     (runCheckout .agentDraft .flakyWifi).walletCents = 5000 ∧
     (runCheckout .agentDraft .flakyWifi).overcharged = true := by
+  decide
+
+theorem decodeOrder_v1_matches :
+    decodeOrderSchema SimScenario.v1Server.rawJson =
+      some (.v1 { id := "ord-42", totalCents := 2500, status := "paid" }) := by
+  decide
+
+theorem decodeOrder_v2_matches :
+    decodeOrderSchema SimScenario.v2NoHeader.rawJson =
+      some (.v2 { id := "ord-42", cents := 2500, currency := "USD", refundable := false }) := by
+  decide
+
+theorem decodeOrder_badGateway_rejected :
+    decodeOrderSchema SimScenario.badGateway.rawJson = none := by
   decide
 
 theorem dce_proof_bytes_always_zero (d : DceState) :

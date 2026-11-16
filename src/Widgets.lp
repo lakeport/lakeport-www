@@ -4,18 +4,20 @@ import Demo.Workbench
 import State
 import Events
 import Brand
+import Diagrams
 set_option synthInstance.maxSize 4096
 /-!
 # `Site.Widgets` : Shared Interactive Lakeport Wasm Components
 
 Exports both marketing-page vessels and MDX-embeddable widgets:
 - `workbenchVesselView`: Homepage `$25.00` flaky-Wi-Fi checkout simulator
-- `contractSimulatorView`: `<ContractSimulator />` embedded inside `04-versioned-contracts.mdx`
-- `rolloutTimelineView`: `<RolloutTimeline />` embedded on `/` and `05-frontend-first-releases.mdx`
+- `contractSimulatorView`: `<ContractSimulator />` embedded inside `05-versioned-contracts.mdx`
+- `rolloutTimelineView`: `<RolloutTimeline />` embedded on `/` and `06-frontend-first-releases.mdx`
 - `deadCodeExplorerView`: `<DeadCodeExplorer />` embedded on `/ecosystem` and `11-reservoir-and-bundle-size.mdx`
+- `archLayersDiagram`, `buildPipelineDiagram`, `lp2AbiDiagram`: architecture diagrams in `13` & `14`
 -/
 namespace Site.Widgets
-open LakeportStyle LakeportMdx Site Site.Contract Site.Demo Site.Brand
+open LakeportStyle LakeportMdx Site Site.Contract Site.Demo Site.Brand Site.Diagrams
 
 abbrev V := StyledView UiEvent Nat
 
@@ -189,7 +191,7 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
 
     <div class="wb-disclosures">
       <div class="wb-disclosure-bar">
-        <button class="wb-disclosure-btn" data-open={wb.ruleOpen} onClick={Ev.wbToggleRule}>
+        <button class="wb-disclosure-btn" onClick={Ev.wbToggleRule}>
           {if wb.ruleOpen then "Hide the Lean rule the agent wrote"
            else "Curious what the proof looks like? Show the rule the agent wrote"}
         </button>
@@ -230,54 +232,50 @@ def workbenchVesselView (wb : WorkbenchState) : V :=
     </div>
   </div>
 
-/-! ## 2. `<ContractSimulator />` (Embedded in `04-versioned-contracts.mdx`) -/
+/-! ## 2. `<ContractSimulator />` (Embedded in `05-versioned-contracts.mdx`) -/
 
 def contractSimulatorView (sim : ContractSimState) : V :=
-  let parsed := simParsedAd sim
-  let negVer : String := match parsed >>= negotiateVersion with
-    | some .v1 => "lpw1 (Version.v1 baseline)"
-    | some .v2 => "lpw2 (Version.v2 negotiated)"
-    | none => "none (fail-closed: unknown schema rejected)"
-  let frame := simEncodedFrame sim
-  let allowed := simPermitted sim
+  let sc := sim.scenario
+  let out := evaluateContractSim sim
   <div class="widget-card">
     <div class="widget-header">
-      <span class="widget-title">Client Contract & Capability Simulator</span>
-      <span class="widget-sub">shared/SiteContract/Api.lean, live in Wasm</span>
+      <span class="widget-title">Frontend JSON Schema Union & Header Simulator</span>
+      <span class="widget-sub">LakeportJson.Json.parse running live in WebAssembly</span>
     </div>
+    <p class="sim-intro">
+      Pick a GET /api/orders/ord-42 response from a Go, Node, Python, or Rust backend to see how one Lakeport frontend decodes active JSON schemas in src/Api/Orders.lean:
+    </p>
     <div class="seg-group">
-      {[ServerMode.legacyV1, .stagedDual, .fullV2].map fun m =>
-        <button class="seg-btn" data-active={!sim.corruptAd && sim.server == m} onClick={Ev.simServer m}>{m.label}</button>}
-      <button class="seg-btn" data-active={sim.corruptAd} onClick={Ev.simCorrupt}>Corrupt CAPS schema v99</button>
+      {SimScenario.all.map fun item =>
+        <button class="seg-btn" data-active={sc == item} onClick={Ev.simScenario item}>{item.label}</button>}
     </div>
-    <div class="seg-group">
-      {[SimCommand.reserve, .milestone, .instant].map fun c =>
-        <button class="seg-btn" data-active={sim.cmd == c} onClick={Ev.simCommand c}>{"Command: " ++ c.label}</button>}
+    <div class="sim-http-box">
+      <span class="sim-http-head">{sc.httpHeaders}</span>
+      <span class="sim-http-json">{sc.rawJson}</span>
     </div>
     <div class="spec-rows">
       <div class="spec-row">
-        <span class="spec-key">GET /api/capabilities</span>
-        <span class="spec-mono">{" | ".intercalate (simRawAdFields sim)}</span>
-      </div>
-      <div class="spec-row">
-        <span class="spec-key">Negotiated version</span>
-        <span class="spec-val">{negVer}</span>
-      </div>
-      <div class="spec-row">
-        <span class="spec-key">Encoded wire frame</span>
-        <span class="spec-mono">{frame}</span>
-      </div>
-      <div class="spec-row">
-        <span class="spec-key">permitsEncodedFrame</span>
-        {if allowed then
-          evidenceItem .proved "true, permitted by Site.Contract.permitsEncodedFrame"
+        <span class="spec-key">Matched union branch</span>
+        {if out.schemaValid then
+          evidenceItem .proved out.matchedBranch
          else
-          evidenceItem .failed "false, blocked in client before socket write"}
+          evidenceItem .failed out.matchedBranch}
+      </div>
+      <div class="spec-row">
+        <span class="spec-key">Rendered order UI</span>
+        <span class="spec-val">{out.receiptText}</span>
+      </div>
+      <div class="spec-row">
+        <span class="spec-key">Instant refund write</span>
+        {if out.refundButtonAllowed then
+          evidenceItem .proved out.refundStatus
+         else
+          evidenceItem .trusted out.refundStatus}
       </div>
     </div>
   </div>
 
-/-! ## 3. `<RolloutTimeline />` (Embedded on `/` and `05-frontend-first-releases.mdx`) -/
+/-! ## 3. `<RolloutTimeline />` (Embedded on `/` and `06-frontend-first-releases.mdx`) -/
 
 def rolloutTimelineView (st : RolloutStage) : V :=
   <div class="rollout-track-box">
@@ -298,15 +296,15 @@ def rolloutTimelineView (st : RolloutStage) : V :=
         <span class="spec-mono">{st.serverAdSummary}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Open older tab</span>
+        <span class="spec-key">SW cache / older tab</span>
         <span class="spec-val">{st.cachedOldClientBehavior}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">Updated client</span>
+        <span class="spec-key">Updated frontend</span>
         <span class="spec-val">{st.newClientBehavior}</span>
       </div>
       <div class="spec-row">
-        <span class="spec-key">v2 feature gate</span>
+        <span class="spec-key">v2 write button</span>
         {if st.gateOpen then
           evidenceItem .proved st.admissionSummary false
          else
@@ -351,7 +349,7 @@ def deadCodeExplorerView (d : DceState) : V :=
       </div>
       <div class="spec-row">
         <span class="spec-key">Estimated slice</span>
-        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB slice (full lakeport-www site: ~460 KB gzipped)"}</span>
+        <span class="spec-mono">{"~" ++ toString m.modeledSliceKb ++ " KB slice"}</span>
       </div>
     </div>
   </div>
@@ -365,6 +363,9 @@ def mdxHooks (s : AppState) : RenderHooks UiEvent Nat where
     if name == "ContractSimulator" then contractSimulatorView s.contractSim
     else if name == "RolloutTimeline" then rolloutTimelineView s.rolloutStage
     else if name == "DeadCodeExplorer" then deadCodeExplorerView s.dce
+    else if name == "ArchLayersDiagram" then archLayersDiagram
+    else if name == "BuildPipelineDiagram" then buildPipelineDiagram
+    else if name == "Lp2AbiDiagram" then lp2AbiDiagram
     else <span>{""}</span>
 
 end Site.Widgets

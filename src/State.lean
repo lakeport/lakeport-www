@@ -34,21 +34,21 @@ Headings, tables, code blocks, and callouts come directly from the compiled Lake
 
 def sandboxPresetContract : String :=
 "---
-title: \"Active API versions\"
+title: \"Active JSON schemas\"
 section: \"Sandbox\"
 ---
 
-## Client contract table
+## Frontend schema union table
 
-| Server version | Wire tag | Instant payout button |
+| Backend payload | Matched type | Instant refund button |
 | --- | --- | --- |
-| `Version.v1` | `lpw1` | Hidden in client |
-| `Version.v2` | `lpw2` | Shown when server advertises flag |
+| `v1` flat JSON | `OrderSchema.v1` | Hidden in client |
+| `v2` nested JSON + header | `OrderSchema.v2` | Enabled when header is present |
 
-```lean title=\"shared/SiteContract/Api.lean\"
-def clientHandler : (v : Version) -> Handler v
-  | .v1 => { encode := Wire.V1.encodeReq, decode := Wire.V1.decodeResp }
-  | .v2 => { encode := Wire.V2.encodeReq, decode := Wire.V2.decodeResp }
+```lean title=\"src/Api/Orders.lean\"
+inductive OrderSchema where
+  | v1 (order : OrderV1)
+  | v2 (order : OrderV2)
 ```"
 
 inductive ThemePref where

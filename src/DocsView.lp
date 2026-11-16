@@ -32,11 +32,12 @@ def docsIndexPage : V :=
             <span class="brand-inline">before it ships.</span>
           </h1>
           <p class="lead-editorial">
-            Twelve practical guides to building compiled WebAssembly apps with Lakeport, starting with a ten-minute starter project and growing into coding-agent workflows, client API contracts, and checked business rules. No prior Lean background required.
+            Practical guides organized into four parts: getting started with a verified local-first app, recommended frontend patterns, built-in SDKs and capabilities, and an architectural guide for contributors working on Lakeport itself.
           </p>
           <div class="cta-row">
             {primaryBtn "Start with Introduction" (Ev.nav "/docs/introduction")}
-            {inlineLinkBtn "Jump to Your first app →" (Ev.nav "/docs/getting-started")}
+            {inlineLinkBtn "Build your first app →" (Ev.nav "/docs/getting-started")}
+            {inlineLinkBtn "How Lakeport is built →" (Ev.nav "/docs/architecture-overview")}
           </div>
         </div>
       </div>
